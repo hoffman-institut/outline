@@ -236,7 +236,7 @@ async function change(
 ) {
   await sequelize.transaction(async (transaction) => {
     const document = await loadForChange(user, ref.documentId, transaction);
-    const canEdit = can(user, "update", document);
+    const canEdit = !!can(user, "update", document);
     if (needsUpdate) {
       authorize(user, "update", document);
     }
