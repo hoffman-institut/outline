@@ -45,6 +45,7 @@ export type DatabaseContextValue = {
   search: string;
   setSearch: (search: string) => void;
   userName: (id: string) => string | undefined;
+};
 
 export const DatabaseContext = React.createContext<DatabaseContextValue | null>(
   null
