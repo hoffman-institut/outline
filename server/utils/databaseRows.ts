@@ -35,6 +35,7 @@ import type { User } from "@server/models";
 import { DocumentHelper } from "@server/models/helpers/DocumentHelper";
 import { authorize, can } from "@server/policies";
 import { sequelize } from "@server/storage/database";
+import Redis from "@server/storage/redis";
 import type { APIContext } from "@server/types";
 
 /**
@@ -254,6 +255,9 @@ async function change(
   });
 }
 
+/** Marks a row deleted on purpose, so that the check after adding it does not add it again. */
+const deletedKey = (rowId: string) => `database:deleted-row:${rowId}`;
+
 /** Whether the document still holds a row, after saves of open editors. */
 async function hasRow(ref: DatabaseRef, rowId: string) {
   const document = await Document.unscoped().findOne({
@@ -330,7 +334,10 @@ export async function addDatabaseRow(
   setTimeout(() => {
     void (async () => {
       try {
-        if (!(await hasRow(ref, rowId))) {
+        if (
+          !(await Redis.defaultClient.exists(deletedKey(rowId))) &&
+          !(await hasRow(ref, rowId))
+        ) {
           Logger.warn("Database row lost after save, adding again", {
             documentId: ref.documentId,
             rowId,
@@ -392,6 +399,7 @@ export async function deleteDatabaseRow(
     }
     found.reverse().forEach(({ from, to }) => tr.delete(from, to));
   });
+  await Redis.defaultClient.set(deletedKey(rowId), "1", "EX", 60);
 }
 
 /**

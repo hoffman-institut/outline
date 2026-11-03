@@ -4,7 +4,8 @@ import type {
   NodeType,
   Node as ProsemirrorNode,
 } from "prosemirror-model";
-import type { Command, EditorState } from "prosemirror-state";
+import { keymap } from "prosemirror-keymap";
+import type { Command, EditorState, Plugin } from "prosemirror-state";
 import { TextSelection } from "prosemirror-state";
 import { isInTable } from "prosemirror-tables";
 import { liftTarget } from "prosemirror-transform";
@@ -45,19 +46,39 @@ export default class Indent extends Node {
     return {
       Tab: this.indent(type),
       "Shift-Tab": this.outdent(type),
-      Backspace: (state, dispatch) => {
-        const { $cursor } = state.selection as TextSelection;
-        if (
-          !(state.selection instanceof TextSelection) ||
-          !$cursor ||
-          $cursor.parentOffset > 0 ||
-          $cursor.depth < 2 ||
-          $cursor.node(-1).type !== type
-        ) {
-          return false;
-        }
-        return this.outdent(type)(state, dispatch);
-      },
+    };
+  }
+
+  get plugins(): Plugin[] {
+    // A plugin rather than a key, so it comes before the keys of toggle
+    // blocks, which join lines on Backspace anywhere.
+    return [
+      keymap({
+        Backspace: (state, dispatch) =>
+          this.outdentAtStart(state.schema.nodes[this.name])(state, dispatch),
+      }),
+    ];
+  }
+
+  /**
+   * Backspace at the start of a line in an indent moves the line back.
+   *
+   * @param type - the indent node type.
+   * @returns the command.
+   */
+  outdentAtStart(type: NodeType): Command {
+    return (state, dispatch) => {
+      const { $cursor } = state.selection as TextSelection;
+      if (
+        !(state.selection instanceof TextSelection) ||
+        !$cursor ||
+        $cursor.parentOffset > 0 ||
+        $cursor.depth < 2 ||
+        $cursor.node(-1).type !== type
+      ) {
+        return false;
+      }
+      return this.outdent(type)(state, dispatch);
     };
   }
 

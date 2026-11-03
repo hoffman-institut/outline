@@ -51,6 +51,9 @@ describe("Columns markdown", () => {
     expect(node.type.name).toBe("columns");
     expect(node.childCount).toBe(3);
     expect(node.child(2).child(0).type.name).toBe("paragraph");
+    // The cursor is in the first column.
+    expect(next.selection.$from.node(-1).type.name).toBe("column");
+    expect(next.selection.$from.index(-2)).toBe(0);
   });
 });
 
@@ -133,12 +136,15 @@ describe("Indent", () => {
       schema.nodes.indent.create(null, [p("Второй")]),
     ]);
     // Start of "Второй": 8 for the first paragraph, 1 into indent, 1 into it.
-    const result = run(at(doc, 10), "Backspace");
-    expect(result.handled).toBe(true);
-    expect(result.next!.doc.child(1).type.name).toBe("paragraph");
-
-    const inside = run(at(doc, 11), "Backspace");
-    expect(inside.handled).toBe(false);
+    const backspace = new Indent().outdentAtStart(schema.nodes.indent);
+    let next: EditorState | undefined;
+    expect(
+      backspace(at(doc, 10), (tr) => {
+        next = at(doc, 10).apply(tr);
+      })
+    ).toBe(true);
+    expect(next!.doc.child(1).type.name).toBe("paragraph");
+    expect(backspace(at(doc, 11))).toBe(false);
   });
 
   it("leaves Tab in lists alone", () => {

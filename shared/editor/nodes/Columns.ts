@@ -5,6 +5,7 @@ import type {
   Schema,
 } from "prosemirror-model";
 import type { Command } from "prosemirror-state";
+import { TextSelection } from "prosemirror-state";
 import type { MarkdownSerializerState } from "../lib/markdown/serializer";
 import columnsRule from "../rules/columns";
 import Node from "./Node";
@@ -49,7 +50,23 @@ export default class Columns extends Node {
               schema.nodes.column.create(null, schema.nodes.paragraph.create())
             )
           );
-          dispatch?.(state.tr.replaceSelectionWith(node).scrollIntoView());
+          const tr = state.tr.replaceSelectionWith(node);
+          // The cursor goes to the first column, not after the last one.
+          const { $from } = tr.selection;
+          let start: number | undefined;
+          for (let d = $from.depth; d > 0; d--) {
+            if ($from.node(d).type === type) {
+              start = $from.before(d);
+              break;
+            }
+          }
+          if (start === undefined && $from.nodeBefore?.type === type) {
+            start = $from.pos - $from.nodeBefore.nodeSize;
+          }
+          if (start !== undefined) {
+            tr.setSelection(TextSelection.near(tr.doc.resolve(start + 1)));
+          }
+          dispatch?.(tr.scrollIntoView());
           return true;
         },
     };
