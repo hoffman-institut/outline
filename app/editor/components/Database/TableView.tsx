@@ -1,4 +1,10 @@
-import { PlusIcon, TrashIcon, DuplicateIcon, OpenIcon } from "outline-icons";
+import {
+  PlusIcon,
+  TrashIcon,
+  DuplicateIcon,
+  NewDocumentIcon,
+  OpenIcon,
+} from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
@@ -11,6 +17,7 @@ import {
   formatDate,
   formatNumber,
   groupRows,
+  isEmptyValue,
   moveColumn,
   newId,
   rowDropIndex,
@@ -20,7 +27,10 @@ import type {
   ComputedColumn,
   ComputedRow,
 } from "@shared/editor/lib/databaseCompute";
-import { isComputed } from "@shared/editor/lib/databaseCompute";
+import {
+  calculatedTypes,
+  isComputed,
+} from "@shared/editor/lib/databaseCompute";
 import { s } from "@shared/styles";
 import {
   Popover,
@@ -589,8 +599,44 @@ function TableRow({
   onDragEnd: () => void;
 }) {
   const { t } = useTranslation();
-  const { editable, mutator, createOption, openRow } = useDatabase();
+  const { data, editable, mutator, createOption, openRow, userName } =
+    useDatabase();
   const [menuOpen, setMenuOpen] = React.useState(false);
+
+  // A template keeps the stored values of the row (not calculated ones) and
+  // its page, which is copied for rows created from the template.
+  const saveAsTemplate = () => {
+    const stored = data.rows.find((r) => r.id === row.id);
+    if (!stored) {
+      return;
+    }
+    const cells = Object.fromEntries(
+      data.columns
+        .filter(
+          (c) =>
+            !calculatedTypes.includes(c.type) &&
+            c.type !== ColumnType.AutoNumber &&
+            !isEmptyValue(stored.cells[c.id])
+        )
+        .map((c) => [c.id, stored.cells[c.id]])
+    );
+    const titleColumn = data.columns[0];
+    const name =
+      (titleColumn &&
+        displayValue(titleColumn, stored.cells[titleColumn.id], userName)) ||
+      t("Template");
+    mutator.setAttrs({
+      templates: [
+        ...(data.templates ?? []),
+        {
+          id: newId(),
+          name,
+          cells,
+          ...(stored.docId ? { pageId: stored.docId } : {}),
+        },
+      ],
+    });
+  };
   const isBelow = (event: React.DragEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return event.clientY > rect.top + rect.height / 2;
@@ -671,6 +717,16 @@ function TableRow({
                 >
                   <DuplicateIcon size={18} />
                   {t("Duplicate")}
+                </MenuRow>
+                <MenuRow
+                  type="button"
+                  onClick={() => {
+                    saveAsTemplate();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <NewDocumentIcon size={18} />
+                  {t("Save as template")}
                 </MenuRow>
                 <MenuRow
                   type="button"

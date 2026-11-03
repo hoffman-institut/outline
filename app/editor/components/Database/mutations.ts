@@ -1,7 +1,12 @@
 import type { Node as ProsemirrorNode } from "prosemirror-model";
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import type { CellValue, Column, View } from "@shared/editor/lib/database";
+import type {
+  CellValue,
+  Column,
+  RowTemplate,
+  View,
+} from "@shared/editor/lib/database";
 import { ColumnType, newId, nextAutoNumber } from "@shared/editor/lib/database";
 
 type Located = { pos: number; node: ProsemirrorNode };
@@ -65,7 +70,12 @@ export class DatabaseMutator {
 
   /** Updates database attributes (title, columns, views). */
   setAttrs(
-    patch: Partial<{ title: string; columns: Column[]; views: View[] }>
+    patch: Partial<{
+      title: string;
+      columns: Column[];
+      views: View[];
+      templates: RowTemplate[];
+    }>
   ) {
     this.dispatch((tr, db) => {
       tr.setNodeMarkup(db.pos, undefined, { ...db.node.attrs, ...patch });

@@ -2269,5 +2269,15 @@
   "By week": "По неделям",
   "By month": "По месяцам",
   "By year": "По годам",
-  "Week of {{ date }}": "Неделя с {{ date }}"
+  "Week of {{ date }}": "Неделя с {{ date }}",
+  "Form": "Форма",
+  "Submit": "Отправить",
+  "Sent, thank you": "Отправлено, спасибо",
+  "Could not send, try again": "Не удалось отправить, попробуйте ещё раз",
+  "Readers of the document can fill in this form. Choose its fields in “Fields”.": "Форму могут заполнить и читатели документа. Поля формы выбираются в «Поля».",
+  "Copy link to the form": "Скопировать ссылку на форму",
+  "Empty row": "Пустая запись",
+  "Save a row as a template from its menu": "Шаблон сохраняется из меню строки",
+  "Save as template": "Сохранить как шаблон",
+  "Could not create the row": "Не удалось создать строку"
 }

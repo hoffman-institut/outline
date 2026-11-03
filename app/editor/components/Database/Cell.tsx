@@ -32,8 +32,11 @@ import {
 } from "~/components/primitives/Popover";
 import useStores from "~/hooks/useStores";
 import useUserLocale from "~/hooks/useUserLocale";
+import { client } from "~/utils/ApiClient";
 import { Chip, MenuRow, PopoverBody, TextInput, stop } from "./components";
 import { useDatabase } from "./context";
+import { databasePos, loadDocument } from "./linked";
+import { DatabaseMutator } from "./mutations";
 
 export type CellProps = {
   column: Column;
@@ -41,7 +44,7 @@ export type CellProps = {
   editable: boolean;
   onChange: (value: CellValue) => void;
   /** Creates a new option in the column and returns it. */
-  onCreateOption: (name: string) => SelectOption;
+  onCreateOption?: (name: string) => SelectOption;
   /** Opens the editor immediately (new rows, keyboard navigation). */
   autoFocus?: boolean;
   /** Relation and backlink cells: the linked rows with their titles. */
@@ -74,13 +77,23 @@ export function Cell(props: CellProps) {
 /** Rows of another database (or this one) linked to the row. */
 function RelationCell({ column, value, links, editable, onChange }: CellProps) {
   const { t } = useTranslation();
-  const { linked } = useDatabase();
+  const { linked, editorView, documentId } = useDatabase();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const [creating, setCreating] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
   const ref = column.relation;
   const status = ref ? linked.status(ref.documentId) : "error";
-  const shown = links ?? [];
   const selectedIds = Array.isArray(value) ? value : [];
+  const target = ref ? linked.get(ref) : undefined;
+  const candidates = target ? linkedRows(computeDatabase(target)) : [];
+  // Cells of forms have no calculated links: titles come from the target.
+  const shown =
+    links ??
+    selectedIds.map((id) => ({
+      id,
+      title: candidates.find((row) => row.id === id)?.title ?? "",
+    }));
 
   const chips = (
     <Chips>
@@ -96,9 +109,46 @@ function RelationCell({ column, value, links, editable, onChange }: CellProps) {
     return <CellText>{chips}</CellText>;
   }
 
-  const target = ref ? linked.get(ref) : undefined;
-  const candidates = target ? linkedRows(computeDatabase(target)) : [];
   const trimmed = query.trim().toLowerCase();
+  const exact = candidates.some(
+    (row) => row.title.trim().toLowerCase() === trimmed
+  );
+
+  // A new row of the linked database, titled with the search text. In this
+  // document it is added in the editor, in another one through the API.
+  const createRow = async () => {
+    const title = query.trim();
+    if (!ref || !target || !title) {
+      return;
+    }
+    const titleColumn =
+      target.columns.find((c) => c.type === ColumnType.Text) ??
+      target.columns[0];
+    setCreating(true);
+    setFailed(false);
+    try {
+      let rowId: string;
+      if (ref.documentId === documentId) {
+        rowId = new DatabaseMutator(editorView, () =>
+          databasePos(editorView.state.doc, ref.databaseId)
+        ).addRow(titleColumn ? { [titleColumn.id]: title } : {});
+      } else {
+        const res = await client.post("/databases.addRow", {
+          documentId: ref.documentId,
+          databaseId: ref.databaseId,
+          cells: titleColumn ? { [titleColumn.id]: title } : {},
+        });
+        rowId = res.data.rowId;
+        loadDocument(ref.documentId, true);
+      }
+      onChange([...selectedIds, rowId]);
+      setQuery("");
+    } catch {
+      setFailed(true);
+    } finally {
+      setCreating(false);
+    }
+  };
   const matches = candidates.filter((row) =>
     (row.title || t("Untitled")).toLowerCase().includes(trimmed)
   );
@@ -156,7 +206,20 @@ function RelationCell({ column, value, links, editable, onChange }: CellProps) {
                     )}
                   </MenuRow>
                 ))}
-                {matches.length === 0 && <Hint>{t("No rows")}</Hint>}
+                {matches.length === 0 && !trimmed && (
+                  <Hint>{t("No rows")}</Hint>
+                )}
+                {trimmed && !exact && (
+                  <MenuRow
+                    type="button"
+                    disabled={creating}
+                    onClick={createRow}
+                  >
+                    <PlusIcon size={18} />
+                    {t("Create “{{ name }}”", { name: query.trim() })}
+                  </MenuRow>
+                )}
+                {failed && <Hint>{t("Could not create the row")}</Hint>}
               </OptionList>
             </>
           )}
@@ -335,7 +398,7 @@ function SelectCell({
   };
 
   const create = () => {
-    if (!trimmed || exact) {
+    if (!trimmed || exact || !onCreateOption) {
       return;
     }
     toggle(onCreateOption(trimmed));
@@ -402,7 +465,7 @@ function SelectCell({
                 )}
               </MenuRow>
             ))}
-            {trimmed && !exact && (
+            {trimmed && !exact && onCreateOption && (
               <MenuRow type="button" onClick={create}>
                 <PlusIcon size={18} />
                 {t("Create “{{ name }}”", { name: trimmed })}

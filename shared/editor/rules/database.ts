@@ -35,6 +35,7 @@ export default function database(md: MarkdownIt): void {
         title: data.title,
         columns: data.columns,
         views: data.views,
+        templates: data.templates ?? [],
       };
 
       const rows = data.rows.map((row) => {

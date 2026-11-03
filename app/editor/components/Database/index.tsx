@@ -5,12 +5,14 @@ import type {
   CellValue,
   Column,
   DatabaseRef,
+  RowTemplate,
   SelectOption,
   View,
 } from "@shared/editor/lib/database";
 import {
   ViewType,
   cellsForFilters,
+  displayValue,
   newId,
   nextOptionColor,
   rowsForView,
@@ -24,8 +26,10 @@ import type { ComponentProps } from "@shared/editor/types";
 import { s } from "@shared/styles";
 import { useDocumentContext } from "~/components/DocumentContext";
 import useStores from "~/hooks/useStores";
+import { client } from "~/utils/ApiClient";
 import { BoardView } from "./BoardView";
 import { CalendarView } from "./CalendarView";
+import { FormView } from "./FormView";
 import { RowPanel } from "./RowPanel";
 import { TableView } from "./TableView";
 import { DatabaseTitle, ViewToolbar } from "./ViewToolbar";
@@ -55,7 +59,7 @@ function DatabaseBlock({
   isEditable,
   isSelected,
 }: ComponentProps) {
-  const { users } = useStores();
+  const { users, documents } = useStores();
   const { document } = useDocumentContext();
   const data = React.useMemo(() => databaseFromNode(node), [node]);
   const linked = useLinkedDatabases(
@@ -69,9 +73,14 @@ function DatabaseBlock({
     () => new DatabaseMutator(editorView, getPos),
     [editorView, getPos]
   );
-  const [activeId, setActiveId] = React.useState<string | null>(() =>
-    readActiveView(node.attrs.id)
-  );
+  const [activeId, setActiveId] = React.useState<string | null>(() => {
+    // A link to a form opens its view: ?view=<view id>.
+    const fromUrl = new URLSearchParams(window.location.search).get("view");
+    return fromUrl &&
+      (node.attrs.views as View[] | undefined)?.some((v) => v.id === fromUrl)
+      ? fromUrl
+      : readActiveView(node.attrs.id);
+  });
   const [openRowId, setOpenRowId] = React.useState<string | null>(null);
   const [focusRowId, setFocusRowId] = React.useState<string | undefined>();
   const [search, setSearch] = React.useState("");
@@ -140,6 +149,28 @@ function DatabaseBlock({
     }
   };
 
+  // Rows created from a template get a copy of its page.
+  const copyTemplatePage = async (template: RowTemplate, rowId: string) => {
+    if (!document || !template.pageId) {
+      return;
+    }
+    const titleColumn = data.columns[0];
+    const title = titleColumn
+      ? displayValue(titleColumn, template.cells[titleColumn.id], userName)
+      : "";
+    const res = await client.post("/documents.duplicate", {
+      id: template.pageId,
+      title: title || template.name,
+      parentDocumentId: document.id,
+      publish: !!document.publishedAt,
+    });
+    const page = res.data.documents?.[0];
+    if (page) {
+      documents.add(page);
+      mutator.setRowDoc(rowId, page.id);
+    }
+  };
+
   const addRow = (cells: Record<string, CellValue> = {}) =>
     mutator.addRow(
       {
@@ -178,8 +209,11 @@ function DatabaseBlock({
         <DatabaseTitle />
         <ViewToolbar
           onSelectView={selectView}
-          onAddRow={() => {
-            const id = addRow();
+          onAddRow={(template) => {
+            const id = addRow(template?.cells);
+            if (template?.pageId) {
+              void copyTemplatePage(template, id);
+            }
             if (activeView.type === ViewType.Table) {
               setFocusRowId(id);
             } else {
@@ -192,6 +226,8 @@ function DatabaseBlock({
         )}
         {activeView.type === ViewType.Board ? (
           <BoardView rows={rows} />
+        ) : activeView.type === ViewType.Form ? (
+          <FormView />
         ) : activeView.type === ViewType.Calendar ? (
           <CalendarView rows={rows} />
         ) : (

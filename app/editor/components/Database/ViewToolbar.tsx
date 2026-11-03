@@ -11,6 +11,8 @@ import {
   TrashIcon,
   DuplicateIcon,
   BuildingBlocksIcon,
+  EditIcon,
+  LinkIcon,
 } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +22,7 @@ import type {
   FilterMode,
   FilterOperator,
   FilterRule,
+  RowTemplate,
   SortRule,
   View,
 } from "@shared/editor/lib/database";
@@ -61,6 +64,8 @@ export function ViewIcon({ type }: { type: ViewType }) {
       return <BuildingBlocksIcon size={18} />;
     case ViewType.Calendar:
       return <CalendarIcon size={18} />;
+    case ViewType.Form:
+      return <EditIcon size={18} />;
     default:
       return <TableIcon size={18} />;
   }
@@ -72,7 +77,7 @@ export function ViewToolbar({
   onAddRow,
 }: {
   onSelectView: (id: string) => void;
-  onAddRow: () => void;
+  onAddRow: (template?: RowTemplate) => void;
 }) {
   const { t } = useTranslation();
   const { data, view, mutator, editable, search, setSearch } = useDatabase();
@@ -94,6 +99,7 @@ export function ViewToolbar({
     { type: ViewType.Table, label: t("Table") },
     { type: ViewType.Board, label: t("Board") },
     { type: ViewType.Calendar, label: t("Calendar") },
+    { type: ViewType.Form, label: t("Form") },
   ];
 
   const addView = (type: ViewType, label: string) => {
@@ -180,20 +186,21 @@ export function ViewToolbar({
         )}
       </Tabs>
       <Actions>
-        <SearchInput
-          type="search"
-          placeholder={t("Search")}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <SortButton />
-        <FilterButton />
+        {view.type !== ViewType.Form && (
+          <>
+            <SearchInput
+              type="search"
+              placeholder={t("Search")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <SortButton />
+            <FilterButton />
+          </>
+        )}
         <FieldsButton />
-        {editable && (
-          <SmallButton type="button" onClick={onAddRow}>
-            <PlusIcon size={18} />
-            {t("New", { context: "database" })}
-          </SmallButton>
+        {editable && view.type !== ViewType.Form && (
+          <CreateButton onAddRow={onAddRow} />
         )}
         {editable && <DatabaseMenu />}
       </Actions>
@@ -240,6 +247,21 @@ function ViewTabMenu({
               }
             }}
           />
+          {current.type === ViewType.Form && (
+            <MenuRow
+              type="button"
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.search = `?view=${current.id}`;
+                url.hash = "";
+                void navigator.clipboard?.writeText(url.toString());
+                setOpen(false);
+              }}
+            >
+              <LinkIcon size={18} />
+              {t("Copy link to the form")}
+            </MenuRow>
+          )}
           <MenuRow
             type="button"
             onClick={() => {
@@ -879,10 +901,66 @@ function FieldsButton() {
   );
 }
 
+/** "New" button; with templates it offers them. */
+function CreateButton({
+  onAddRow,
+}: {
+  onAddRow: (template?: RowTemplate) => void;
+}) {
+  const { t } = useTranslation();
+  const { data } = useDatabase();
+  const [open, setOpen] = React.useState(false);
+  const templates = data.templates ?? [];
+  const label = (
+    <>
+      <PlusIcon size={18} />
+      {t("New", { context: "database" })}
+    </>
+  );
+  if (!templates.length) {
+    return (
+      <SmallButton type="button" onClick={() => onAddRow()}>
+        {label}
+      </SmallButton>
+    );
+  }
+  const create = (template?: RowTemplate) => {
+    setOpen(false);
+    onAddRow(template);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger>
+        <SmallButton type="button">{label}</SmallButton>
+      </PopoverTrigger>
+      <PopoverContent width={240} shrink align="end" onClick={stop}>
+        <PopoverBody>
+          <MenuRow type="button" onClick={() => create()}>
+            {t("Empty row")}
+          </MenuRow>
+          <MenuLabel>{t("Templates")}</MenuLabel>
+          {templates.map((template) => (
+            <MenuRow
+              key={template.id}
+              type="button"
+              onClick={() => create(template)}
+            >
+              {template.name || t("Untitled")}
+            </MenuRow>
+          ))}
+        </PopoverBody>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function DatabaseMenu() {
   const { t } = useTranslation();
-  const { mutator } = useDatabase();
+  const { data, mutator } = useDatabase();
   const [confirm, setConfirm] = React.useState(false);
+  const templates = data.templates ?? [];
+  const saveTemplates = (next: RowTemplate[]) =>
+    mutator.setAttrs({ templates: next });
   return (
     <Popover onOpenChange={() => setConfirm(false)}>
       <PopoverTrigger>
@@ -892,6 +970,39 @@ function DatabaseMenu() {
       </PopoverTrigger>
       <PopoverContent width={240} shrink align="end" onClick={stop}>
         <PopoverBody>
+          <MenuLabel>{t("Templates")}</MenuLabel>
+          {templates.length === 0 && (
+            <Hint>{t("Save a row as a template from its menu")}</Hint>
+          )}
+          {templates.map((template) => (
+            <RuleRow key={template.id}>
+              <TextInput
+                defaultValue={template.name}
+                onBlur={(event) => {
+                  const name = event.target.value.trim();
+                  if (name && name !== template.name) {
+                    saveTemplates(
+                      templates.map((item) =>
+                        item.id === template.id ? { ...item, name } : item
+                      )
+                    );
+                  }
+                }}
+              />
+              <IconButton
+                type="button"
+                aria-label={t("Delete")}
+                onClick={() =>
+                  saveTemplates(
+                    templates.filter((item) => item.id !== template.id)
+                  )
+                }
+              >
+                <CloseIcon size={18} />
+              </IconButton>
+            </RuleRow>
+          ))}
+          <MenuDivider />
           <MenuRow
             type="button"
             $danger

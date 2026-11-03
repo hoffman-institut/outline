@@ -2077,5 +2077,15 @@
   "By week": "By week",
   "By month": "By month",
   "By year": "By year",
-  "Week of {{ date }}": "Week of {{ date }}"
+  "Week of {{ date }}": "Week of {{ date }}",
+  "Form": "Form",
+  "Submit": "Submit",
+  "Sent, thank you": "Sent, thank you",
+  "Could not send, try again": "Could not send, try again",
+  "Readers of the document can fill in this form. Choose its fields in “Fields”.": "Readers of the document can fill in this form. Choose its fields in “Fields”.",
+  "Copy link to the form": "Copy link to the form",
+  "Empty row": "Empty row",
+  "Save a row as a template from its menu": "Save a row as a template from its menu",
+  "Save as template": "Save as template",
+  "Could not create the row": "Could not create the row"
 }

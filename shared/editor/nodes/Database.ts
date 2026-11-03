@@ -21,7 +21,13 @@ import Node from "./Node";
  */
 export function databaseFromNode(node: ProsemirrorNode): DatabaseData {
   const rows: Row[] = [];
+  const seen = new Set<string>();
   node.forEach((child) => {
+    // A row added twice through the API (see databases.addRow) is shown once.
+    if (seen.has(child.attrs.id)) {
+      return;
+    }
+    seen.add(child.attrs.id);
     rows.push({
       id: child.attrs.id,
       cells: child.attrs.cells ?? {},
@@ -33,6 +39,9 @@ export function databaseFromNode(node: ProsemirrorNode): DatabaseData {
     columns: node.attrs.columns ?? [],
     views: node.attrs.views ?? [],
     rows,
+    ...(node.attrs.templates?.length
+      ? { templates: node.attrs.templates }
+      : {}),
   };
 }
 
@@ -54,6 +63,7 @@ export default class Database extends Node {
         title: { default: "" },
         columns: { default: [] },
         views: { default: [] },
+        templates: { default: [] },
       },
       content: "database_row*",
       group: "block",
@@ -78,6 +88,7 @@ export default class Database extends Node {
                 title: data.title,
                 columns: data.columns,
                 views: data.views,
+                templates: data.templates ?? [],
               };
             } catch {
               return false;
@@ -94,6 +105,7 @@ export default class Database extends Node {
             title: node.attrs.title,
             columns: node.attrs.columns,
             views: node.attrs.views,
+            templates: node.attrs.templates,
           }),
         },
         0,
@@ -117,6 +129,7 @@ export default class Database extends Node {
               title: data.title,
               columns: data.columns,
               views: data.views,
+              templates: data.templates ?? [],
             },
             data.rows.map((row) =>
               schema.nodes.database_row.create({
@@ -163,6 +176,7 @@ export default class Database extends Node {
         title: token.meta?.title ?? "",
         columns: token.meta?.columns ?? [],
         views: token.meta?.views ?? [],
+        templates: token.meta?.templates ?? [],
       }),
     };
   }

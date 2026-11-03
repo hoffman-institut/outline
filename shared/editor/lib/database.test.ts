@@ -578,3 +578,20 @@ describe("groupRows", () => {
     ]);
   });
 });
+
+describe("templates and forms", () => {
+  it("keeps row templates and form views", () => {
+    const data = normalizeDatabase({
+      views: [{ id: "f", type: "form", hidden: ["x"] }],
+      templates: [
+        { id: "t1", name: "Встреча", cells: { st: "todo" }, pageId: "p1" },
+        { name: "no id" },
+      ],
+    });
+    expect(data.views[0].type).toBe(ViewType.Form);
+    expect(data.templates).toEqual([
+      { id: "t1", name: "Встреча", cells: { st: "todo" }, pageId: "p1" },
+    ]);
+    expect(normalizeDatabase({}).templates).toBeUndefined();
+  });
+});

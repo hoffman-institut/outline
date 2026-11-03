@@ -80,6 +80,30 @@ export function databasesInDoc(
   return result;
 }
 
+/**
+ * Position of a database block in an editor document.
+ *
+ * @param doc the document.
+ * @param databaseId the database block.
+ * @returns the position, or undefined when the block is not there.
+ */
+export function databasePos(
+  doc: ProsemirrorNode,
+  databaseId: string
+): number | undefined {
+  let found: number | undefined;
+  doc.descendants((node, pos) => {
+    if (found !== undefined) {
+      return false;
+    }
+    if (node.type.name === "database" && node.attrs.id === databaseId) {
+      found = pos;
+    }
+    return node.type.name !== "database";
+  });
+  return found;
+}
+
 function findNode(doc: ProsemirrorNode, databaseId: string) {
   let found: ProsemirrorNode | undefined;
   doc.descendants((node) => {

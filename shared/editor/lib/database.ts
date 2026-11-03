@@ -46,6 +46,8 @@ export enum ViewType {
   Table = "table",
   Board = "board",
   Calendar = "calendar",
+  /** A form that adds rows; readers of the document can fill it in. */
+  Form = "form",
 }
 
 export type OptionColor =
@@ -215,11 +217,21 @@ export type Row = {
   docId?: string | null;
 };
 
+/** Preset values (and a page to copy) for new rows. */
+export type RowTemplate = {
+  id: string;
+  name: string;
+  cells: Record<string, CellValue>;
+  /** Document copied as the page of rows created from the template. */
+  pageId?: string;
+};
+
 export type DatabaseData = {
   title: string;
   columns: Column[];
   views: View[];
   rows: Row[];
+  templates?: RowTemplate[];
 };
 
 export const optionColors: OptionColor[] = [
@@ -1358,10 +1370,21 @@ export function normalizeDatabase(input: unknown): DatabaseData {
           ...(r.docId ? { docId: r.docId } : {}),
         }))
     : [];
+  const templates: RowTemplate[] = Array.isArray(raw.templates)
+    ? raw.templates
+        .filter((t) => t && typeof t.id === "string")
+        .map((t) => ({
+          id: t.id,
+          name: String(t.name ?? ""),
+          cells: t.cells && typeof t.cells === "object" ? t.cells : {},
+          ...(typeof t.pageId === "string" ? { pageId: t.pageId } : {}),
+        }))
+    : [];
   return {
     title: String(raw.title ?? ""),
     columns,
     views: views.length ? views : [createView(ViewType.Table, "Table")],
     rows,
+    ...(templates.length ? { templates } : {}),
   };
 }
