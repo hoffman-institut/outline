@@ -184,6 +184,12 @@ export default class ComponentView {
 
   stopEvent(event: Event) {
     if (
+      event.target instanceof Element &&
+      event.target.closest("[data-database-ui]")
+    ) {
+      return true;
+    }
+    if (
       this.contentDOM &&
       event.target instanceof globalThis.Node &&
       this.contentDOM.contains(event.target)

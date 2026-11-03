@@ -14,11 +14,14 @@ import PasteHandler from "~/editor/extensions/PasteHandler";
 import PreventTab from "~/editor/extensions/PreventTab";
 import SelectionToolbarExtension from "~/editor/extensions/SelectionToolbar";
 import SmartText from "~/editor/extensions/SmartText";
+import DatabaseView from "~/editor/nodes/DatabaseView";
+import Database from "@shared/editor/nodes/Database";
 
 type Nodes = AnyExtensionClass[];
 
 export const withUIExtensions = (nodes: Nodes) => [
-  ...nodes,
+  // The database block gets its React UI only in the app.
+  ...nodes.map((node) => (node === Database ? DatabaseView : node)),
   SmartText,
   PasteHandler,
   ClipboardTextSerializer,

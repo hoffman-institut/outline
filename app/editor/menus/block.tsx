@@ -11,6 +11,7 @@ import {
   PageBreakIcon,
   PDFIcon,
   TableIcon,
+  DatabaseIcon,
   TodoListIcon,
   ImageIcon,
   StarredIcon,
@@ -28,6 +29,7 @@ import styled from "styled-components";
 import { v4 as uuidv4 } from "uuid";
 import type { TFunction } from "i18next";
 import Image from "@shared/editor/components/Img";
+import { createDefaultDatabase } from "@shared/editor/lib/database";
 import type { MenuItem } from "@shared/editor/types";
 import { MentionType } from "@shared/types";
 import { toISODate } from "@shared/utils/date";
@@ -147,6 +149,21 @@ export default function blockMenuItems(
         colsCount: 3,
         colWidth: documentWidth / 3,
       },
+    },
+    {
+      name: "database",
+      title: t("Database"),
+      icon: <DatabaseIcon />,
+      keywords:
+        "database board kanban calendar tags properties база таблица доска канбан календарь",
+      attrs: () =>
+        createDefaultDatabase({
+          title: t("Untitled database"),
+          name: t("Name", { context: "database" }),
+          tags: t("Tags"),
+          date: t("Date"),
+          view: t("Table"),
+        }),
     },
     {
       name: "blockquote",
