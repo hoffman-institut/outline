@@ -4,7 +4,7 @@ import * as React from "react";
 import type { DatabaseData, DatabaseRef } from "@shared/editor/lib/database";
 import { normalizeDatabase } from "@shared/editor/lib/database";
 import { databaseFromNode } from "@shared/editor/nodes/Database";
-import { DATABASE_FENCE } from "@shared/editor/rules/database";
+import type { ProsemirrorData } from "@shared/types";
 import { client } from "~/utils/ApiClient";
 
 /** A database block found in a document. */
@@ -28,27 +28,37 @@ const listeners = new Set<() => void>();
 const maxAge = 30 * 1000;
 
 /**
- * Databases written in markdown as fenced JSON blocks.
+ * Databases in the ProseMirror JSON of a document, as the API returns it.
  *
- * @param text markdown of a document.
+ * @param node the document or one of its nodes.
+ * @param result collected databases.
  * @returns the databases by block id.
  */
-export function databasesInMarkdown(text: string): Map<string, FoundDatabase> {
-  const result = new Map<string, FoundDatabase>();
-  const fence = new RegExp(
-    "^(`{3,})" + DATABASE_FENCE + "\\n([\\s\\S]*?)\\n\\1$",
-    "gm"
-  );
-  for (const match of text.matchAll(fence)) {
-    try {
-      const raw = JSON.parse(match[2]);
-      if (typeof raw?.id === "string") {
-        result.set(raw.id, { id: raw.id, ...normalizeDatabase(raw) });
-      }
-    } catch {
-      // A broken block is skipped.
-    }
+export function databasesInJSON(
+  node: ProsemirrorData | undefined,
+  result = new Map<string, FoundDatabase>()
+): Map<string, FoundDatabase> {
+  if (!node) {
+    return result;
   }
+  if (node.type === "database" && typeof node.attrs?.id === "string") {
+    const id = node.attrs.id as string;
+    result.set(id, {
+      id,
+      ...normalizeDatabase({
+        title: node.attrs.title,
+        columns: node.attrs.columns,
+        views: node.attrs.views,
+        rows: (node.content ?? []).map((row) => ({
+          id: row.attrs?.id,
+          cells: row.attrs?.cells,
+          docId: row.attrs?.docId,
+        })),
+      }),
+    });
+    return result;
+  }
+  node.content?.forEach((child) => databasesInJSON(child, result));
   return result;
 }
 
@@ -103,10 +113,13 @@ export function loadDocument(documentId: string, force = false) {
   client
     .post("/documents.info", { id: documentId })
     .then((res) => {
+      // API version 2+ wraps the document, version 3+ sends its content as
+      // ProseMirror JSON in "data".
+      const doc = res.data.document ?? res.data;
       entry.loaded = {
-        title: res.data.title,
-        url: res.data.url,
-        databases: databasesInMarkdown(res.data.text ?? ""),
+        title: doc.title,
+        url: doc.url,
+        databases: databasesInJSON(doc.data),
         loadedAt: Date.now(),
       };
       entry.failed = false;
