@@ -124,7 +124,7 @@ function DocumentBreadcrumb({
         to: trashPath(),
       }),
       createInternalLinkAction({
-        name: t("Archive"),
+        name: t("Archive", { context: "section" }),
         section: ActiveDocumentSection,
         icon: <ArchiveIcon />,
         visible: document.isArchived,

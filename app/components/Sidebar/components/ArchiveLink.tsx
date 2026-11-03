@@ -71,7 +71,7 @@ function ArchiveLink() {
             onClickIntent={Scenes.Archive.preload}
             icon={<ArchiveIcon open={isOverArchiveSection && isDragging} />}
             exact={false}
-            label={t("Archive")}
+            label={t("Archive", { context: "section" })}
             isActiveDrop={isOverArchiveSection && isDragging}
             depth={0}
             expanded={disclosure ? expanded : undefined}

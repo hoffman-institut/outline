@@ -78,7 +78,7 @@ export const navigateToSearch = createInternalLinkAction({
 });
 
 export const navigateToArchive = createInternalLinkAction({
-  name: ({ t }) => t("Archive"),
+  name: ({ t }) => t("Archive", { context: "section" }),
   analyticsName: "Navigate to archive",
   section: NavigationSection,
   shortcut: ["g", "a"],

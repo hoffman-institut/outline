@@ -520,8 +520,8 @@ export default class PostgresSearchProvider extends BaseSearchProvider {
 
     if (query) {
       const rankExpression = usePopularityBoost
-        ? `ts_rank("searchVector", to_tsquery('english', :query)) * (1 + 0.25 * LN(1 + COALESCE("popularityScore", 0)))`
-        : `ts_rank("searchVector", to_tsquery('english', :query))`;
+        ? `ts_rank("searchVector", to_tsquery('russian', :query)) * (1 + 0.25 * LN(1 + COALESCE("popularityScore", 0)))`
+        : `ts_rank("searchVector", to_tsquery('russian', :query))`;
 
       attributes.push([Sequelize.literal(rankExpression), "searchRanking"]);
       replacements["query"] = PostgresSearchProvider.webSearchQuery(query);
@@ -758,7 +758,7 @@ export default class PostgresSearchProvider extends BaseSearchProvider {
         where[Op.and].push(
           Sequelize.fn(
             `"searchVector" @@ to_tsquery`,
-            "english",
+            "russian",
             Sequelize.literal(":query")
           )
         );

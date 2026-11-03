@@ -12,8 +12,8 @@ function Archive() {
   const { t } = useTranslation();
   const { documents } = useStores();
   return (
-    <Scene icon={<ArchiveIcon />} title={t("Archive")}>
-      <Heading>{t("Archive")}</Heading>
+    <Scene icon={<ArchiveIcon />} title={t("Archive", { context: "section" })}>
+      <Heading>{t("Archive", { context: "section" })}</Heading>
       <PaginatedDocumentList
         documents={documents.archived}
         fetch={documents.fetchArchived}

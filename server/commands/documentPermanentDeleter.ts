@@ -20,7 +20,7 @@ export default async function documentPermanentDeleter(documents: Document[]) {
   const query = `
     SELECT COUNT(id)
     FROM documents
-    WHERE "searchVector" @@ to_tsquery('english', :query) AND
+    WHERE "searchVector" @@ to_tsquery('russian', :query) AND
     "teamId" = :teamId AND
     "id" != :documentId
   `;

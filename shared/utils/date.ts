@@ -39,6 +39,7 @@ import { nl } from "date-fns/locale/nl";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { pt } from "date-fns/locale/pt";
 import { pl } from "date-fns/locale/pl";
+import { ru } from "date-fns/locale/ru";
 import { sv } from "date-fns/locale/sv";
 import { tr } from "date-fns/locale/tr";
 import { vi } from "date-fns/locale/vi";
@@ -321,6 +322,7 @@ const locales = {
   pt_BR: ptBR,
   pt_PT: pt,
   pl_PL: pl,
+  ru_RU: ru,
   sv_SE: sv,
   tr_TR: tr,
   uk_UA: uk,

@@ -5,7 +5,6 @@ import styled from "styled-components";
 import { Client } from "@shared/types";
 import ButtonLarge from "~/components/ButtonLarge";
 import InputLarge from "~/components/InputLarge";
-import PluginIcon from "~/components/PluginIcon";
 import { client } from "~/utils/ApiClient";
 import Desktop from "~/utils/Desktop";
 import { getRedirectUrl } from "~/utils/urls";
@@ -106,21 +105,38 @@ function AuthenticationProvider(props: Props) {
   }
 
   return (
-    <ButtonLarge
-      onClick={() => (window.location.href = href)}
-      icon={<PluginIcon id={id} />}
-      fullwidth
-      {...rest}
-    >
-      {t("Continue with {{ authProviderName }}", {
-        authProviderName: name,
-      })}
-    </ButtonLarge>
+    <AdminLogin>
+      <a href={href}>
+        {t("Continue with {{ authProviderName }}", {
+          authProviderName: name,
+        })}
+      </a>
+      <AdminNote>{t("Administrators only")}</AdminNote>
+    </AdminLogin>
   );
 }
 
 const Wrapper = styled.div`
   width: 100%;
+`;
+
+const AdminLogin = styled.div`
+  width: 100%;
+  margin-top: 28px;
+  text-align: center;
+  font-size: 14px;
+
+  a {
+    color: inherit;
+    opacity: 0.75;
+    text-decoration: underline;
+  }
+`;
+
+const AdminNote = styled.div`
+  font-size: 12px;
+  opacity: 0.5;
+  margin-top: 4px;
 `;
 
 const Form = styled.form`

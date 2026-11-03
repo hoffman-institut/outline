@@ -18,7 +18,7 @@ export const CollectionBreadcrumb: React.FC<Props> = ({ collection }) => {
   const actions = React.useMemo(
     () => [
       createInternalLinkAction({
-        name: t("Archive"),
+        name: t("Archive", { context: "section" }),
         section: ActiveCollectionSection,
         icon: <ArchiveIcon />,
         visible: collection.isArchived,

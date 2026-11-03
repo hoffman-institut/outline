@@ -7,7 +7,7 @@ import { send } from "@koa/send";
 import { languages } from "@shared/i18n";
 import { TeamPreference } from "@shared/types";
 import { parseDomain } from "@shared/utils/domains";
-import { Day } from "@shared/utils/time";
+import { Day, Hour } from "@shared/utils/time";
 import env from "@server/env";
 import { NotFoundError } from "@server/errors";
 import shareDomains from "@server/middlewares/shareDomains";
@@ -115,7 +115,7 @@ router.get("/locales/:lng.json", async (ctx) => {
   await send(ctx, path.join(lng, "translation.json"), {
     setHeaders: (res, _, stats) => {
       res.setHeader("Last-Modified", formatRFC7231(stats.mtime));
-      res.setHeader("Cache-Control", `public, max-age=${7 * Day.seconds}`);
+      res.setHeader("Cache-Control", `public, max-age=${Hour.seconds}`);
       res.setHeader(
         "ETag",
         crypto.createHash("md5").update(stats.mtime.toISOString()).digest("hex")

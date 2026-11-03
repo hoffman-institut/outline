@@ -361,11 +361,14 @@ function Login({ children, onBack }: Props) {
           </>
         ) : (
           <>
-            <StyledHeading as="h2" centered>
+            <LoginHeading as="h2" centered>
               {t("Log in to {{ authProviderName }}", {
                 authProviderName: config.name || env.APP_NAME,
               })}
-            </StyledHeading>
+            </LoginHeading>
+            <Content>
+              {t("Corporate knowledge base of Hoffman Institute Russia")}
+            </Content>
             {children?.(config)}
           </>
         )}
@@ -390,22 +393,24 @@ function Login({ children, onBack }: Props) {
             )}
           </React.Fragment>
         )}
-        {config.providers.map((provider) => {
-          if (defaultProvider && provider.id === defaultProvider.id) {
-            return null;
-          }
+        {[...config.providers]
+          .sort((a, b) => Number(b.id === "email") - Number(a.id === "email"))
+          .map((provider) => {
+            if (defaultProvider && provider.id === defaultProvider.id) {
+              return null;
+            }
 
-          return (
-            <AuthenticationProvider
-              key={provider.id}
-              isCreate={isCreate}
-              onEmailSuccess={handleEmailSuccess}
-              preferOTP={preferOTP}
-              neutral={defaultProvider && hasMultipleProviders}
-              {...provider}
-            />
-          );
-        })}
+            return (
+              <AuthenticationProvider
+                key={provider.id}
+                isCreate={isCreate}
+                onEmailSuccess={handleEmailSuccess}
+                preferOTP={preferOTP}
+                neutral={defaultProvider && hasMultipleProviders}
+                {...provider}
+              />
+            );
+          })}
         {isCreate && (
           <Note>
             <Trans>
@@ -424,6 +429,12 @@ const Form = styled.form`
 
 const StyledHeading = styled(Heading)`
   margin: 0;
+`;
+
+// The title translation contains a line break ("Wiki\nInstitute name").
+const LoginHeading = styled(StyledHeading)`
+  white-space: pre-line;
+  font-size: 22px;
 `;
 
 const Domain = styled.div`
