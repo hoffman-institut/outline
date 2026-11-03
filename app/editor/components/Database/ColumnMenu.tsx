@@ -33,23 +33,66 @@ import {
   optionNamesFor,
 } from "@shared/editor/lib/database";
 import { s } from "@shared/styles";
-import { ColorPicker, Chip, MenuDivider, MenuLabel, MenuRow, TextInput } from "./components";
+import {
+  ColorPicker,
+  Chip,
+  MenuDivider,
+  MenuLabel,
+  MenuRow,
+  TextInput,
+} from "./components";
 import { useDatabase, useUpdateView } from "./context";
 
 export function useColumnTypes() {
   const { t } = useTranslation();
   return React.useMemo(
     () => [
-      { type: ColumnType.Text, label: t("Text"), icon: <InputIcon size={18} /> },
-      { type: ColumnType.Number, label: t("Number"), icon: <HashtagIcon size={18} /> },
-      { type: ColumnType.Select, label: t("Select", { context: "database" }), icon: <CollapseIcon size={18} /> },
-      { type: ColumnType.MultiSelect, label: t("Multi-select"), icon: <BulletedListIcon size={18} /> },
-      { type: ColumnType.Date, label: t("Date"), icon: <CalendarIcon size={18} /> },
-      { type: ColumnType.Person, label: t("Person"), icon: <UserIcon size={18} /> },
-      { type: ColumnType.Checkbox, label: t("Checkbox"), icon: <CheckboxIcon checked size={18} /> },
+      {
+        type: ColumnType.Text,
+        label: t("Text"),
+        icon: <InputIcon size={18} />,
+      },
+      {
+        type: ColumnType.Number,
+        label: t("Number"),
+        icon: <HashtagIcon size={18} />,
+      },
+      {
+        type: ColumnType.Select,
+        label: t("Select", { context: "database" }),
+        icon: <CollapseIcon size={18} />,
+      },
+      {
+        type: ColumnType.MultiSelect,
+        label: t("Multi-select"),
+        icon: <BulletedListIcon size={18} />,
+      },
+      {
+        type: ColumnType.Date,
+        label: t("Date"),
+        icon: <CalendarIcon size={18} />,
+      },
+      {
+        type: ColumnType.Person,
+        label: t("Person"),
+        icon: <UserIcon size={18} />,
+      },
+      {
+        type: ColumnType.Checkbox,
+        label: t("Checkbox"),
+        icon: <CheckboxIcon checked size={18} />,
+      },
       { type: ColumnType.Url, label: t("URL"), icon: <LinkIcon size={18} /> },
-      { type: ColumnType.Email, label: t("Email"), icon: <EmailIcon size={18} /> },
-      { type: ColumnType.Phone, label: t("Phone"), icon: <KeyboardIcon size={18} /> },
+      {
+        type: ColumnType.Email,
+        label: t("Email"),
+        icon: <EmailIcon size={18} />,
+      },
+      {
+        type: ColumnType.Phone,
+        label: t("Phone"),
+        icon: <KeyboardIcon size={18} />,
+      },
     ],
     [t]
   );
@@ -165,7 +208,9 @@ export function ColumnMenu({
 
   const sort = (direction: "asc" | "desc", upcoming?: boolean) => {
     updateView({
-      sort: [{ columnId: column.id, direction, ...(upcoming ? { upcoming } : {}) }],
+      sort: [
+        { columnId: column.id, direction, ...(upcoming ? { upcoming } : {}) },
+      ],
     });
     onClose();
   };

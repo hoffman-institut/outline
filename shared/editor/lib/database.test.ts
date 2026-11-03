@@ -130,9 +130,9 @@ describe("matchesFilter", () => {
   });
 
   it("ignores unfinished filters", () => {
-    expect(
-      matchesFilter(name, "x", { columnId: "name", operator: "is" })
-    ).toBe(true);
+    expect(matchesFilter(name, "x", { columnId: "name", operator: "is" })).toBe(
+      true
+    );
   });
 });
 

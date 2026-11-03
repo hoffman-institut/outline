@@ -2,6 +2,9 @@
 import type RootStore from "~/stores/RootStore";
 
 declare global {
+  /** Hash of the translation files, set by Vite (vite.config.ts). */
+  const __TRANSLATIONS_VERSION__: string | undefined;
+
   interface ImportMeta {
     /**
      * A special feature that allows you to get all matching modules starting from some base directory.

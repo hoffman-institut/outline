@@ -1,11 +1,7 @@
 import type { Node as ProsemirrorNode } from "prosemirror-model";
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import type {
-  CellValue,
-  Column,
-  View,
-} from "@shared/editor/lib/database";
+import type { CellValue, Column, View } from "@shared/editor/lib/database";
 import { newId } from "@shared/editor/lib/database";
 
 type Located = { pos: number; node: ProsemirrorNode };
@@ -30,7 +26,9 @@ export class DatabaseMutator {
   }
 
   private findRow(db: Located, rowId: string) {
-    let found: { pos: number; node: ProsemirrorNode; index: number } | undefined;
+    let found:
+      | { pos: number; node: ProsemirrorNode; index: number }
+      | undefined;
     db.node.forEach((child, offset, index) => {
       if (child.attrs.id === rowId) {
         found = { pos: db.pos + 1 + offset, node: child, index };
@@ -52,7 +50,9 @@ export class DatabaseMutator {
   }
 
   /** Updates database attributes (title, columns, views). */
-  setAttrs(patch: Partial<{ title: string; columns: Column[]; views: View[] }>) {
+  setAttrs(
+    patch: Partial<{ title: string; columns: Column[]; views: View[] }>
+  ) {
     this.dispatch((tr, db) => {
       tr.setNodeMarkup(db.pos, undefined, { ...db.node.attrs, ...patch });
     });

@@ -1,4 +1,10 @@
-import { MoreIcon, PlusIcon, TrashIcon, DuplicateIcon, OpenIcon } from "outline-icons";
+import {
+  MoreIcon,
+  PlusIcon,
+  TrashIcon,
+  DuplicateIcon,
+  OpenIcon,
+} from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
@@ -197,7 +203,9 @@ function TableRow({
             value={row.cells[column.id]}
             editable={editable}
             autoFocus={autoFocus && index === 0}
-            onChange={(value) => mutator.setCells(row.id, { [column.id]: value })}
+            onChange={(value) =>
+              mutator.setCells(row.id, { [column.id]: value })
+            }
             onCreateOption={(name) => createOption(column, name)}
           />
         </td>

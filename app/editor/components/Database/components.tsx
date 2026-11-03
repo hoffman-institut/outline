@@ -51,8 +51,10 @@ export function ColorPicker({
           type="button"
           $active={color === value}
           style={{
-            background: optionPalette[color][theme.isDark ? "dark" : "light"][0],
-            borderColor: optionPalette[color][theme.isDark ? "dark" : "light"][1],
+            background:
+              optionPalette[color][theme.isDark ? "dark" : "light"][0],
+            borderColor:
+              optionPalette[color][theme.isDark ? "dark" : "light"][1],
           }}
           onClick={() => onChange(color)}
           aria-label={color}

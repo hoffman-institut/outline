@@ -34,7 +34,13 @@ function readActiveView(id: string | null): string | null {
  * The database block: title, view tabs with sort / filter / fields, and the
  * active view (table, board or calendar). All data lives in the node.
  */
-function DatabaseBlock({ node, view: editorView, getPos, isEditable, isSelected }: ComponentProps) {
+function DatabaseBlock({
+  node,
+  view: editorView,
+  getPos,
+  isEditable,
+  isSelected,
+}: ComponentProps) {
   const data = React.useMemo(() => databaseFromNode(node), [node]);
   const mutator = React.useMemo(
     () => new DatabaseMutator(editorView, getPos),

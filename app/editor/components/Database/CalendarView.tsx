@@ -14,6 +14,9 @@ import useUserLocale from "~/hooks/useUserLocale";
 import { SmallButton } from "./components";
 import { useDatabase } from "./context";
 
+const capitalize = (text: string) =>
+  text.charAt(0).toUpperCase() + text.slice(1);
+
 const isLeapYear = (year: number) =>
   (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 
@@ -53,7 +56,9 @@ export function CalendarView({ rows }: { rows: Row[] }) {
       const m = day.getMonth() + 1;
       const d = day.getDate();
       if (!view.recurring) {
-        return date.year === day.getFullYear() && date.month === m && date.day === d;
+        return (
+          date.year === day.getFullYear() && date.month === m && date.day === d
+        );
       }
       if (date.month === m && date.day === d) {
         return true;
@@ -67,6 +72,12 @@ export function CalendarView({ rows }: { rows: Row[] }) {
         !isLeapYear(day.getFullYear())
       );
     });
+
+  // Russian "ноябрь 2026 г.": capitalize the month only, not "г.".
+  const monthTitle = new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+  }).format(first);
 
   const shift = (delta: number) =>
     setCursor(({ year, month }) => {
@@ -83,19 +94,27 @@ export function CalendarView({ rows }: { rows: Row[] }) {
   return (
     <Wrapper>
       <Nav>
-        <MonthTitle>
-          {new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(first)}
-        </MonthTitle>
-        <SmallButton type="button" aria-label={t("Previous month")} onClick={() => shift(-1)}>
+        <MonthTitle>{capitalize(monthTitle)}</MonthTitle>
+        <SmallButton
+          type="button"
+          aria-label={t("Previous month")}
+          onClick={() => shift(-1)}
+        >
           <BackIcon size={18} />
         </SmallButton>
         <SmallButton
           type="button"
-          onClick={() => setCursor({ year: now.getFullYear(), month: now.getMonth() })}
+          onClick={() =>
+            setCursor({ year: now.getFullYear(), month: now.getMonth() })
+          }
         >
           {t("Today")}
         </SmallButton>
-        <SmallButton type="button" aria-label={t("Next month")} onClick={() => shift(1)}>
+        <SmallButton
+          type="button"
+          aria-label={t("Next month")}
+          onClick={() => shift(1)}
+        >
           <NextIcon size={18} />
         </SmallButton>
       </Nav>
@@ -125,8 +144,13 @@ export function CalendarView({ rows }: { rows: Row[] }) {
                 )}
               </DayHeader>
               {entries.map((row) => (
-                <Entry key={row.id} type="button" onClick={() => openRow(row.id)}>
-                  {(titleColumn && displayValue(titleColumn, row.cells[titleColumn.id])) ||
+                <Entry
+                  key={row.id}
+                  type="button"
+                  onClick={() => openRow(row.id)}
+                >
+                  {(titleColumn &&
+                    displayValue(titleColumn, row.cells[titleColumn.id])) ||
                     t("Untitled")}
                 </Entry>
               ))}
@@ -153,7 +177,6 @@ const MonthTitle = styled.div`
   font-size: 16px;
   font-weight: 600;
   margin-right: auto;
-  text-transform: capitalize;
 `;
 
 const Grid = styled.div`

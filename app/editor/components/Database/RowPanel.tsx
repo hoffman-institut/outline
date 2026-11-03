@@ -1,4 +1,9 @@
-import { CloseIcon, DocumentIcon, NewDocumentIcon, TrashIcon } from "outline-icons";
+import {
+  CloseIcon,
+  DocumentIcon,
+  NewDocumentIcon,
+  TrashIcon,
+} from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -22,7 +27,9 @@ export function RowPanel({ row, onClose }: { row: Row; onClose: () => void }) {
   const { document } = useDocumentContext();
   const [creating, setCreating] = React.useState(false);
   const titleColumn = data.columns[0];
-  const title = titleColumn ? displayValue(titleColumn, row.cells[titleColumn.id]) : "";
+  const title = titleColumn
+    ? displayValue(titleColumn, row.cells[titleColumn.id])
+    : "";
   const page = row.docId ? documents.get(row.docId) : undefined;
 
   React.useEffect(() => {

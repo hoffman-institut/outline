@@ -69,6 +69,7 @@ export function ViewToolbar({
 }) {
   const { t } = useTranslation();
   const { data, view, mutator, editable } = useDatabase();
+  const [addOpen, setAddOpen] = React.useState(false);
 
   const viewTypes = [
     { type: ViewType.Table, label: t("Table") },
@@ -92,6 +93,7 @@ export function ViewToolbar({
     }
     mutator.setAttrs({ views: [...data.views, added] });
     onSelectView(added.id);
+    setAddOpen(false);
   };
 
   return (
@@ -113,7 +115,7 @@ export function ViewToolbar({
           )
         )}
         {editable && (
-          <Popover>
+          <Popover open={addOpen} onOpenChange={setAddOpen}>
             <PopoverTrigger>
               <SmallButton type="button" aria-label={t("Add view")}>
                 <PlusIcon size={18} />
@@ -195,7 +197,11 @@ function ViewTabMenu({
           <MenuRow
             type="button"
             onClick={() => {
-              const copy = { ...current, id: newId(), name: `${current.name} 2` };
+              const copy = {
+                ...current,
+                id: newId(),
+                name: `${current.name} 2`,
+              };
               mutator.setAttrs({ views: [...data.views, copy] });
               onSelectView(copy.id);
               setOpen(false);
@@ -233,7 +239,9 @@ function SortButton() {
 
   const setRule = (index: number, patch: Partial<SortRule>) =>
     updateView({
-      sort: view.sort.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)),
+      sort: view.sort.map((rule, i) =>
+        i === index ? { ...rule, ...patch } : rule
+      ),
     });
 
   return (
@@ -247,7 +255,9 @@ function SortButton() {
       </PopoverTrigger>
       <PopoverContent width={420} shrink align="end" onClick={stop}>
         <PopoverBody>
-          {view.sort.length === 0 && <Hint>{t("No sorting: manual order")}</Hint>}
+          {view.sort.length === 0 && (
+            <Hint>{t("No sorting: manual order")}</Hint>
+          )}
           {view.sort.map((rule, index) => {
             const column = columns.find((c) => c.id === rule.columnId);
             return (
@@ -256,7 +266,10 @@ function SortButton() {
                   disabled={!editable}
                   value={rule.columnId}
                   onChange={(event) =>
-                    setRule(index, { columnId: event.target.value, upcoming: false })
+                    setRule(index, {
+                      columnId: event.target.value,
+                      upcoming: false,
+                    })
                   }
                 >
                   {columns.map((c) => (
@@ -291,7 +304,9 @@ function SortButton() {
                     type="button"
                     aria-label={t("Remove")}
                     onClick={() =>
-                      updateView({ sort: view.sort.filter((_, i) => i !== index) })
+                      updateView({
+                        sort: view.sort.filter((_, i) => i !== index),
+                      })
                     }
                   >
                     <CloseIcon size={18} />
@@ -527,7 +542,9 @@ function FieldsButton() {
   const { t } = useTranslation();
   const { data, view, editable } = useDatabase();
   const updateView = useUpdateView();
-  const selectColumns = data.columns.filter((c) => c.type === ColumnType.Select);
+  const selectColumns = data.columns.filter(
+    (c) => c.type === ColumnType.Select
+  );
   const dateColumns = data.columns.filter((c) => c.type === ColumnType.Date);
 
   return (
@@ -547,7 +564,9 @@ function FieldsButton() {
                 <Select
                   disabled={!editable}
                   value={view.groupBy ?? ""}
-                  onChange={(event) => updateView({ groupBy: event.target.value })}
+                  onChange={(event) =>
+                    updateView({ groupBy: event.target.value })
+                  }
                 >
                   <option value="" disabled>
                     {t("Choose…")}
@@ -645,7 +664,9 @@ function DatabaseMenu() {
           <MenuRow
             type="button"
             $danger
-            onClick={() => (confirm ? mutator.deleteDatabase() : setConfirm(true))}
+            onClick={() =>
+              confirm ? mutator.deleteDatabase() : setConfirm(true)
+            }
           >
             <TrashIcon size={18} />
             {confirm ? t("Click again to delete") : t("Delete database")}
@@ -710,7 +731,8 @@ const Tab = styled.button<{ $active?: boolean }>`
   border-radius: 14px;
   background: ${(props) =>
     props.$active ? props.theme.listItemHoverBackground : "none"};
-  color: ${(props) => (props.$active ? props.theme.text : props.theme.textSecondary)};
+  color: ${(props) =>
+    props.$active ? props.theme.text : props.theme.textSecondary};
   font-size: 14px;
   font-weight: ${(props) => (props.$active ? 500 : 400)};
   cursor: pointer;
@@ -785,4 +807,3 @@ const Title = styled.input`
     color: ${s("placeholder")};
   }
 `;
-

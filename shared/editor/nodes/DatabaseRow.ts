@@ -34,7 +34,8 @@ export default class DatabaseRow extends Node {
               );
               return {
                 id: typeof row.id === "string" ? row.id : newId(),
-                cells: row.cells && typeof row.cells === "object" ? row.cells : {},
+                cells:
+                  row.cells && typeof row.cells === "object" ? row.cells : {},
                 docId: row.docId ?? null,
               };
             } catch {

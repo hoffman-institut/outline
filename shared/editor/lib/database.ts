@@ -190,7 +190,12 @@ export function createDefaultDatabase(names: {
   };
   const columns: Column[] = [
     titleColumn,
-    { id: newId(), name: names.tags, type: ColumnType.MultiSelect, options: [] },
+    {
+      id: newId(),
+      name: names.tags,
+      type: ColumnType.MultiSelect,
+      options: [],
+    },
     { id: newId(), name: names.date, type: ColumnType.Date },
   ];
   return {
@@ -379,10 +384,7 @@ export function convertValue(
  * Option names that a type change needs to create, e.g. when text becomes a
  * select column.
  */
-export function optionNamesFor(
-  from: Column,
-  rows: Row[]
-): string[] {
+export function optionNamesFor(from: Column, rows: Row[]): string[] {
   const names = new Set<string>();
   for (const row of rows) {
     const text = displayValue(from, row.cells[from.id]);
@@ -482,9 +484,7 @@ export function matchesFilter(
             : n === target;
     }
     case ColumnType.Select:
-      return filter.operator === "is_not"
-        ? value !== needle
-        : value === needle;
+      return filter.operator === "is_not" ? value !== needle : value === needle;
     case ColumnType.MultiSelect:
     case ColumnType.Person: {
       const ids = Array.isArray(value) ? value : [];
@@ -651,7 +651,9 @@ export function normalizeDatabase(input: unknown): DatabaseData {
         .map((v) => ({
           id: v.id,
           name: String(v.name ?? ""),
-          type: Object.values(ViewType).includes(v.type) ? v.type : ViewType.Table,
+          type: Object.values(ViewType).includes(v.type)
+            ? v.type
+            : ViewType.Table,
           sort: Array.isArray(v.sort) ? v.sort : [],
           filters: Array.isArray(v.filters) ? v.filters : [],
           hidden: Array.isArray(v.hidden) ? v.hidden : [],

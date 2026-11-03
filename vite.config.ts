@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
@@ -25,6 +26,20 @@ if (environment.NODE_ENV === "development") {
   }
 }
 
+// Changes whenever a translation changes, so the browser fetches new strings
+// right after a deploy instead of using a cached copy.
+const translationsVersion = (() => {
+  const dir = path.resolve("shared/i18n/locales");
+  const hash = crypto.createHash("sha1");
+  for (const locale of fs.readdirSync(dir).sort()) {
+    const file = path.join(dir, locale, "translation.json");
+    if (fs.existsSync(file)) {
+      hash.update(fs.readFileSync(file));
+    }
+  }
+  return hash.digest("hex").slice(0, 10);
+})();
+
 export default ({ mode }: ConfigEnv) =>
   defineConfig({
     // The local .env file can set NODE_ENV=development in process.env via the
@@ -35,6 +50,7 @@ export default ({ mode }: ConfigEnv) =>
       "process.env.NODE_ENV": JSON.stringify(
         mode === "development" ? "development" : "production"
       ),
+      __TRANSLATIONS_VERSION__: JSON.stringify(translationsVersion),
     },
     root: "./",
     publicDir: "./server/static",

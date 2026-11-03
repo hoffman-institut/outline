@@ -251,7 +251,11 @@ function SelectCell({
           />
           <OptionList>
             {matches.map((option) => (
-              <MenuRow key={option.id} type="button" onClick={() => toggle(option)}>
+              <MenuRow
+                key={option.id}
+                type="button"
+                onClick={() => toggle(option)}
+              >
                 <Chip option={option} />
                 {selectedIds.includes(option.id) && (
                   <Right>
@@ -298,17 +302,19 @@ function DateCell({ value, editable, onChange }: CellProps) {
         <CellButton type="button">{text}</CellButton>
       </PopoverTrigger>
       <PopoverContent width={300} shrink align="start" onClick={stop}>
-        <Calendar
-          mode="single"
-          selected={selected}
-          defaultMonth={selected}
-          onSelect={pick}
-          captionLayout="dropdown-buttons"
-          fromYear={1930}
-          toYear={new Date().getFullYear() + 10}
-          weekStartsOn={1}
-          locale={dateLocale(language as keyof typeof locales)}
-        />
+        <DayPickerStyles>
+          <Calendar
+            mode="single"
+            selected={selected}
+            defaultMonth={selected}
+            onSelect={pick}
+            captionLayout="dropdown-buttons"
+            fromYear={1930}
+            toYear={new Date().getFullYear() + 10}
+            weekStartsOn={1}
+            locale={dateLocale(language as keyof typeof locales)}
+          />
+        </DayPickerStyles>
         <PopoverBody>
           <MenuRow type="button" onClick={() => pick(new Date())}>
             {t("Today")}
@@ -455,6 +461,46 @@ const CheckboxWrap = styled.div`
     width: 16px;
     height: 16px;
     cursor: pointer;
+  }
+`;
+
+// react-day-picker dropdown captions need their base styles: the native select
+// is laid invisibly over the visible month / year label.
+const DayPickerStyles = styled.div`
+  .rdp-caption_dropdowns {
+    position: relative;
+    display: inline-flex;
+    gap: 12px;
+  }
+
+  .rdp-dropdown_month,
+  .rdp-dropdown_year {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .rdp-dropdown {
+    appearance: none;
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .rdp-caption_label {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: 600;
+    text-transform: capitalize;
   }
 `;
 

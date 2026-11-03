@@ -33,7 +33,10 @@ function buildDoc() {
           id: "r1",
           cells: { name: "Анна ```", dept: "adm", bd: "1990-11-10" },
         }),
-        schema.nodes.database_row.create({ id: "r2", cells: { name: "Борис" } }),
+        schema.nodes.database_row.create({
+          id: "r2",
+          cells: { name: "Борис" },
+        }),
       ]
     ),
     schema.nodes.paragraph.create(null, schema.text("После базы")),
@@ -51,9 +54,7 @@ describe("Database markdown", () => {
     const database = parsed.child(1);
     expect(database.type.name).toBe("database");
     expect(database.attrs.id).toBe("db1");
-    expect(databaseFromNode(database)).toEqual(
-      databaseFromNode(doc.child(1))
-    );
+    expect(databaseFromNode(database)).toEqual(databaseFromNode(doc.child(1)));
     expect(parsed.child(2).textContent).toBe("После базы");
   });
 
