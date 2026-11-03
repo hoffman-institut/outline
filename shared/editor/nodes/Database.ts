@@ -62,6 +62,9 @@ export default class Database extends Node {
       defining: true,
       selectable: true,
       draggable: false,
+      // Rows, columns and cards are dragged inside the block, which draws
+      // its own indicator; the editor's drop cursor would show a second one.
+      disableDropCursor: true,
       parseDOM: [
         {
           tag: "div[data-database]",
