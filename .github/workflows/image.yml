@@ -1,0 +1,58 @@
+name: Image
+
+# Builds the Hoffman Outline image and publishes it to GHCR.
+# Push a tag "v<outline version>-h<N>" (e.g. v1.11.0-h1) to publish
+# ghcr.io/<owner>/outline:1.11.0-h1. Manual runs publish dev-<sha>.
+on:
+  push:
+    tags: ["v*-h*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Image name
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = "tag" ] || tag="dev-${GITHUB_SHA::7}"
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/outline:${tag}" >> "$GITHUB_ENV"
+
+      # The yarn install + vite build needs more disk than the runner has free.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Build base image
+        run: docker build -f Dockerfile.base -t outline-base:local .
+
+      - name: Build runtime image
+        run: docker build --build-arg BASE_IMAGE=outline-base:local -t "$IMAGE" .
+
+      # Fails the build if the Hoffman changes did not make it into the output.
+      - name: Smoke test
+        run: |
+          docker run --rm --entrypoint sh "$IMAGE" -c '
+            set -e
+            cd /opt/outline/build
+            test -s shared/i18n/locales/ru_RU/translation.json
+            grep -q "russian" plugins/search-postgres/server/PostgresSearchProvider.js
+            grep -q "ru_RU" shared/i18n/index.js
+            grep -rlq "Administrators only" app/assets
+          '
+
+      - name: Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE"
+          echo "Published $IMAGE" >> "$GITHUB_STEP_SUMMARY"
