@@ -5,6 +5,7 @@ import {
   convertValue,
   daysUntilAnniversary,
   displayValue,
+  moveColumn,
   matchesFilter,
   normalizeDatabase,
   rowsForView,
@@ -166,5 +167,32 @@ describe("normalizeDatabase", () => {
     expect(data.columns).toEqual([{ id: "x", name: "X", type: "text" }]);
     expect(data.rows).toEqual([{ id: "r", cells: {} }]);
     expect(data.views).toHaveLength(1);
+  });
+});
+
+describe("moveColumn", () => {
+  const columns = [name, birthday, status, tags];
+  const ids = (list: Column[]) => list.map((c) => c.id);
+
+  it("moves a column after a later one", () => {
+    expect(ids(moveColumn(columns, "name", "st", true))).toEqual([
+      "bd",
+      "st",
+      "name",
+      "tags",
+    ]);
+  });
+
+  it("moves a column before an earlier one", () => {
+    expect(ids(moveColumn(columns, "tags", "name", false))).toEqual([
+      "tags",
+      "name",
+      "bd",
+      "st",
+    ]);
+  });
+
+  it("keeps the order when dropped on itself", () => {
+    expect(moveColumn(columns, "bd", "bd", true)).toBe(columns);
   });
 });

@@ -381,6 +381,34 @@ export function convertValue(
 }
 
 /**
+ * Moves a column next to another one.
+ *
+ * @param columns all columns in their current order.
+ * @param columnId the column to move.
+ * @param targetId the column to place it next to.
+ * @param after place it after the target instead of before.
+ * @returns the reordered columns, or the same array if nothing moves.
+ */
+export function moveColumn(
+  columns: Column[],
+  columnId: string,
+  targetId: string,
+  after: boolean
+): Column[] {
+  const moving = columns.find((c) => c.id === columnId);
+  if (!moving || columnId === targetId) {
+    return columns;
+  }
+  const rest = columns.filter((c) => c.id !== columnId);
+  const index = rest.findIndex((c) => c.id === targetId);
+  if (index < 0) {
+    return columns;
+  }
+  rest.splice(after ? index + 1 : index, 0, moving);
+  return rest;
+}
+
+/**
  * Option names that a type change needs to create, e.g. when text becomes a
  * select column.
  */

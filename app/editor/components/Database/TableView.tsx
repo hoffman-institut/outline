@@ -9,7 +9,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { Column, Row } from "@shared/editor/lib/database";
-import { ColumnType, newId } from "@shared/editor/lib/database";
+import { ColumnType, moveColumn, newId } from "@shared/editor/lib/database";
 import { s } from "@shared/styles";
 import {
   Popover,
@@ -99,9 +99,14 @@ export function TableView({
   );
 }
 
+const COLUMN_DRAG = "text/x-database-column";
+
 function HeaderCell({ column }: { column: Column }) {
-  const { editable } = useDatabase();
+  const { editable, data, mutator } = useDatabase();
   const [open, setOpen] = React.useState(false);
+  const [dropSide, setDropSide] = React.useState<"before" | "after" | null>(
+    null
+  );
   const label = (
     <>
       <ColumnTypeIcon type={column.type} />
@@ -115,8 +120,41 @@ function HeaderCell({ column }: { column: Column }) {
       </th>
     );
   }
+  // Headers are dragged to reorder columns; a line shows the drop side.
   return (
-    <th>
+    <HeaderTh
+      draggable
+      $drop={dropSide}
+      onDragStart={(event) => {
+        event.dataTransfer.setData(COLUMN_DRAG, column.id);
+        event.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes(COLUMN_DRAG)) {
+          return;
+        }
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        setDropSide(
+          event.clientX < rect.left + rect.width / 2 ? "before" : "after"
+        );
+      }}
+      onDragLeave={() => setDropSide(null)}
+      onDragEnd={() => setDropSide(null)}
+      onDrop={(event) => {
+        const id = event.dataTransfer.getData(COLUMN_DRAG);
+        const after = dropSide === "after";
+        setDropSide(null);
+        if (!id) {
+          return;
+        }
+        event.preventDefault();
+        const columns = moveColumn(data.columns, id, column.id, after);
+        if (columns !== data.columns) {
+          mutator.setColumns(columns);
+        }
+      }}
+    >
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger>
           <HeaderButton type="button">{label}</HeaderButton>
@@ -125,7 +163,7 @@ function HeaderCell({ column }: { column: Column }) {
           <ColumnMenu column={column} onClose={() => setOpen(false)} />
         </PopoverContent>
       </Popover>
-    </th>
+    </HeaderTh>
   );
 }
 
@@ -252,6 +290,17 @@ const Table = styled.table`
 
   tr:hover td:first-child button {
     opacity: 1;
+  }
+`;
+
+const HeaderTh = styled.th<{ $drop: "before" | "after" | null }>`
+  && {
+    box-shadow: ${(props) =>
+      props.$drop === "before"
+        ? `inset 3px 0 0 ${props.theme.accent}`
+        : props.$drop === "after"
+          ? `inset -3px 0 0 ${props.theme.accent}`
+          : "none"};
   }
 `;
 

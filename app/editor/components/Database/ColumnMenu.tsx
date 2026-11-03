@@ -1,4 +1,6 @@
 import {
+  BackIcon,
+  NextIcon,
   CalendarIcon,
   CheckboxIcon,
   CollapseIcon,
@@ -28,6 +30,7 @@ import type {
 import {
   ColumnType,
   convertValue,
+  moveColumn,
   newId,
   nextOptionColor,
   optionNamesFor,
@@ -274,6 +277,44 @@ export function ColumnMenu({
         >
           <EyeIcon size={18} />
           {t("Hide in this view")}
+        </MenuRow>
+      )}
+      {index > 0 && (
+        <MenuRow
+          type="button"
+          onClick={() => {
+            setColumns(
+              moveColumn(
+                data.columns,
+                column.id,
+                data.columns[index - 1].id,
+                false
+              )
+            );
+            onClose();
+          }}
+        >
+          <BackIcon size={18} />
+          {t("Move left")}
+        </MenuRow>
+      )}
+      {index < data.columns.length - 1 && (
+        <MenuRow
+          type="button"
+          onClick={() => {
+            setColumns(
+              moveColumn(
+                data.columns,
+                column.id,
+                data.columns[index + 1].id,
+                true
+              )
+            );
+            onClose();
+          }}
+        >
+          <NextIcon size={18} />
+          {t("Move right")}
         </MenuRow>
       )}
       <MenuRow type="button" onClick={() => insert(0)}>
