@@ -22,7 +22,43 @@ export enum ColumnType {
   Backlink = "backlink",
   Rollup = "rollup",
   AutoNumber = "auto_number",
+  Files = "files",
 }
+
+/** A file in a files column (an attachment of the document). */
+export type FileValue = {
+  id: string;
+  name: string;
+  url: string;
+  /** MIME type, e.g. "image/png". */
+  type?: string;
+  size?: number;
+};
+
+/**
+ * Files of a cell. They are stored as JSON strings, so cells keep the plain
+ * value types (string lists) that sorting, filters and sync rely on.
+ *
+ * @param value stored cell value.
+ * @returns the files.
+ */
+export function parseFiles(value: CellValue | undefined): FileValue[] {
+  return (Array.isArray(value) ? value : []).flatMap((item) => {
+    try {
+      const file = JSON.parse(item);
+      return file && typeof file.url === "string" ? [file as FileValue] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** Stored form of a file. */
+export const fileToCell = (file: FileValue) => JSON.stringify(file);
+
+export const isImage = (file: FileValue) =>
+  (file.type ?? "").startsWith("image/") ||
+  /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name);
 
 /** How numbers are shown: as typed, with thousands separators, as money. */
 export type NumberFormat =
@@ -48,6 +84,8 @@ export enum ViewType {
   Calendar = "calendar",
   /** A form that adds rows; readers of the document can fill it in. */
   Form = "form",
+  /** Cards with a picture from a files column. */
+  Gallery = "gallery",
 }
 
 export type OptionColor =
@@ -92,6 +130,12 @@ export type Column = {
   max?: number;
   /** Auto number columns: text before the number, e.g. "TASK-". */
   prefix?: string;
+  /**
+   * Date columns: values may have a time, stored as an instant in UTC
+   * ("2026-11-04T07:30:00.000Z") and shown in the viewer's time zone.
+   * Dates without a time ("2026-11-04") are the same day everywhere.
+   */
+  withTime?: boolean;
 };
 
 /** A database block in a document. */
@@ -182,6 +226,10 @@ export type View = {
   groupBy?: string;
   /** Table grouped by a date: the period of a group. */
   groupDate?: DateUnit;
+  /** Calendar view: a month, a week or a day. */
+  calendarMode?: "month" | "week" | "day";
+  /** Gallery view: the files column whose first picture is the cover. */
+  coverColumn?: string;
   /** Calendar view: the date column that places rows on days. */
   dateColumn?: string;
   /** Calendar view: repeat dates every year (birthdays, anniversaries). */
@@ -348,24 +396,70 @@ export function isEmptyValue(value: CellValue | undefined): boolean {
 export function parseDateValue(
   value: CellValue | undefined
 ): { year: number; month: number; day: number } | undefined {
+  const key = dateKey(value);
+  if (!key) {
+    return undefined;
+  }
+  return {
+    year: +key.slice(0, 4),
+    month: +key.slice(5, 7),
+    day: +key.slice(8, 10),
+  };
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** Whether a stored date has a time ("YYYY-MM-DDTHH:mm..."). */
+export const hasTime = (value: CellValue | undefined): boolean =>
+  typeof value === "string" && value.length > 10 && value[10] === "T";
+
+/**
+ * Calendar day of a stored date as "YYYY-MM-DD": a date as it is, a date
+ * with a time as the day in the local time zone.
+ *
+ * @param value stored date value.
+ * @returns the day, or undefined for anything else.
+ */
+export function dateKey(value: CellValue | undefined): string | undefined {
+  if (hasTime(value)) {
+    const time = Date.parse(value as string);
+    return Number.isFinite(time) ? todayValue(new Date(time)) : undefined;
+  }
   if (typeof value !== "string") {
     return undefined;
   }
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) {
-    return undefined;
-  }
-  return { year: +match[1], month: +match[2], day: +match[3] };
+  return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : undefined;
 }
 
-/** Formats a stored date as DD.MM.YYYY. */
+/** Local time of a stored date with a time, "HH:mm". */
+export function timeOf(value: CellValue | undefined): string | undefined {
+  if (!hasTime(value)) {
+    return undefined;
+  }
+  const date = new Date(value as string);
+  return Number.isFinite(date.getTime())
+    ? `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+    : undefined;
+}
+
+/** Moment of a stored date, for ordering: a date counts as its midnight. */
+function timeValue(value: CellValue | undefined): number {
+  if (hasTime(value)) {
+    return Date.parse(value as string);
+  }
+  const key = dateKey(value);
+  return key ? Date.parse(`${key}T00:00:00`) : NaN;
+}
+
+/** Formats a stored date as DD.MM.YYYY, with a time as DD.MM.YYYY HH:mm. */
 export function formatDate(value: CellValue | undefined): string {
   const date = parseDateValue(value);
   if (!date) {
     return "";
   }
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(date.day)}.${pad(date.month)}.${date.year}`;
+  const text = `${pad2(date.day)}.${pad2(date.month)}.${date.year}`;
+  const time = timeOf(value);
+  return time ? `${text} ${time}` : text;
 }
 
 /** Today as "YYYY-MM-DD" in local time. */
@@ -480,6 +574,10 @@ export function displayValue(
         : String(value ?? "");
     case ColumnType.AutoNumber:
       return `${column.prefix ?? ""}${value}`;
+    case ColumnType.Files:
+      return parseFiles(value)
+        .map((file) => file.name)
+        .join(", ");
     default:
       return String(value ?? "");
   }
@@ -641,7 +739,7 @@ function compareCells(
       result = rule.upcoming
         ? (daysUntilAnniversary(a, today) ?? 0) -
           (daysUntilAnniversary(b, today) ?? 0)
-        : String(a).localeCompare(String(b));
+        : timeValue(a) - timeValue(b);
       break;
     case ColumnType.Select: {
       // Order of options, as the user arranged them.
@@ -733,7 +831,7 @@ export function matchesFilter(
         const days = daysUntilAnniversary(value, today);
         return days !== undefined && days <= Number(filter.value);
       }
-      const v = String(value);
+      const v = dateKey(value) ?? "";
       return filter.operator === "before"
         ? v < needle
         : filter.operator === "after"
@@ -786,7 +884,7 @@ function matchesRelativeDate(
   if (!parseDateValue(value)) {
     return false;
   }
-  const day = dayNumber(String(value));
+  const day = dayNumber(dateKey(value)!);
   const now = dayNumber(today);
   switch (filter.operator) {
     case "today":
@@ -1064,7 +1162,12 @@ export function groupRows<R extends Row>(
         );
         break;
       case ColumnType.Date: {
-        const period = periodOf(String(value), options.dateUnit ?? "month");
+        const key = dateKey(value);
+        if (!key) {
+          add("", "", row);
+          break;
+        }
+        const period = periodOf(key, options.dateUnit ?? "month");
         add(period, formatDate(period), row);
         break;
       }
@@ -1143,6 +1246,8 @@ export function operatorsFor(type: ColumnType): FilterOperator[] {
     case ColumnType.Relation:
     case ColumnType.Backlink:
       return ["contains", "not_contains", "is_empty", "is_not_empty"];
+    case ColumnType.Files:
+      return ["is_empty", "is_not_empty"];
     default:
       return [
         "contains",
@@ -1206,7 +1311,7 @@ export function computeTotal(
     .filter((n) => Number.isFinite(n));
   const dates = filled
     .filter((v) => parseDateValue(v))
-    .map((v) => String(v).slice(0, 10))
+    .map((v) => dateKey(v)!)
     .sort();
   switch (kind) {
     case "count":
@@ -1316,6 +1421,7 @@ export function normalizeDatabase(input: unknown): DatabaseData {
           ...(c.showAs === "bar" ? { showAs: "bar" as const } : {}),
           ...(typeof c.max === "number" && c.max > 0 ? { max: c.max } : {}),
           ...(typeof c.prefix === "string" ? { prefix: c.prefix } : {}),
+          ...(c.withTime ? { withTime: true } : {}),
           ...(c.rollup &&
           typeof c.rollup.columnId === "string" &&
           typeof c.rollup.targetColumnId === "string" &&
@@ -1359,6 +1465,12 @@ export function normalizeDatabase(input: unknown): DatabaseData {
               }
             : {}),
           ...(v.newRowsFirst ? { newRowsFirst: true } : {}),
+          ...(["week", "day"].includes(v.calendarMode as string)
+            ? { calendarMode: v.calendarMode }
+            : {}),
+          ...(typeof v.coverColumn === "string"
+            ? { coverColumn: v.coverColumn }
+            : {}),
         }))
     : [];
   const rows: Row[] = Array.isArray(raw.rows)

@@ -173,6 +173,7 @@ function sanitizeCells(
         break;
       case ColumnType.Person:
       case ColumnType.Relation:
+      case ColumnType.Files:
         cells[columnId] = list(value);
         break;
       default:

@@ -12,6 +12,7 @@ import {
   DuplicateIcon,
   BuildingBlocksIcon,
   EditIcon,
+  ImageIcon,
   LinkIcon,
 } from "outline-icons";
 import * as React from "react";
@@ -66,6 +67,8 @@ export function ViewIcon({ type }: { type: ViewType }) {
       return <CalendarIcon size={18} />;
     case ViewType.Form:
       return <EditIcon size={18} />;
+    case ViewType.Gallery:
+      return <ImageIcon size={18} />;
     default:
       return <TableIcon size={18} />;
   }
@@ -99,6 +102,7 @@ export function ViewToolbar({
     { type: ViewType.Table, label: t("Table") },
     { type: ViewType.Board, label: t("Board") },
     { type: ViewType.Calendar, label: t("Calendar") },
+    { type: ViewType.Gallery, label: t("Gallery") },
     { type: ViewType.Form, label: t("Form") },
   ];
 
@@ -820,6 +824,27 @@ function FieldsButton() {
                   <option value="year">{t("By year")}</option>
                 </Select>
               )}
+              <MenuDivider />
+            </>
+          )}
+          {view.type === ViewType.Gallery && (
+            <>
+              <MenuLabel>{t("Cover")}</MenuLabel>
+              <Select
+                value={view.coverColumn ?? ""}
+                onChange={(event) =>
+                  updateView({ coverColumn: event.target.value })
+                }
+              >
+                <option value="">{t("First files column")}</option>
+                {data.columns
+                  .filter((c) => c.type === ColumnType.Files)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </Select>
               <MenuDivider />
             </>
           )}

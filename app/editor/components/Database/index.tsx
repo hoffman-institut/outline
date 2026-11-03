@@ -30,6 +30,7 @@ import { client } from "~/utils/ApiClient";
 import { BoardView } from "./BoardView";
 import { CalendarView } from "./CalendarView";
 import { FormView } from "./FormView";
+import { GalleryView } from "./GalleryView";
 import { RowPanel } from "./RowPanel";
 import { TableView } from "./TableView";
 import { DatabaseTitle, ViewToolbar } from "./ViewToolbar";
@@ -228,6 +229,8 @@ function DatabaseBlock({
           <BoardView rows={rows} />
         ) : activeView.type === ViewType.Form ? (
           <FormView />
+        ) : activeView.type === ViewType.Gallery ? (
+          <GalleryView rows={rows} />
         ) : activeView.type === ViewType.Calendar ? (
           <CalendarView rows={rows} />
         ) : (

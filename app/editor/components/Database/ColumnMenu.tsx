@@ -15,6 +15,7 @@ import {
   GoToIcon,
   MathIcon,
   OrderedListIcon,
+  AttachmentIcon,
   ReturnIcon,
   SummaryIcon,
   KeyboardIcon,
@@ -39,6 +40,7 @@ import {
   moveColumn,
   newId,
   nextOptionColor,
+  dateKey,
   isFilterGroup,
   numberFormats,
   optionNamesFor,
@@ -133,6 +135,11 @@ export function useColumnTypes() {
         type: ColumnType.AutoNumber,
         label: t("Auto number"),
         icon: <OrderedListIcon size={18} />,
+      },
+      {
+        type: ColumnType.Files,
+        label: t("Files"),
+        icon: <AttachmentIcon size={18} />,
       },
     ],
     [t]
@@ -377,6 +384,34 @@ export function ColumnMenu({
       {column.type === ColumnType.Rollup && <RollupEditor column={column} />}
       {valueType === ColumnType.Number && (
         <NumberFormatEditor column={column} />
+      )}
+      {column.type === ColumnType.Date && (
+        <CheckLabel>
+          <input
+            type="checkbox"
+            checked={!!column.withTime}
+            onChange={(event) => {
+              const withTime = event.target.checked;
+              setColumns(
+                data.columns.map((c) => {
+                  if (c.id !== column.id) {
+                    return c;
+                  }
+                  const { withTime: _old, ...rest } = c;
+                  return withTime ? { ...rest, withTime: true } : rest;
+                }),
+                // Without a time, a date keeps its local day.
+                withTime
+                  ? undefined
+                  : (cells) => ({
+                      ...cells,
+                      [column.id]: dateKey(cells[column.id]) ?? null,
+                    })
+              );
+            }}
+          />
+          {t("Include time")}
+        </CheckLabel>
       )}
       {column.type === ColumnType.AutoNumber && (
         <PrefixEditor column={column} />
@@ -685,6 +720,14 @@ const Body = styled.div`
   flex-direction: column;
   gap: 2px;
   padding: 8px;
+`;
+
+const CheckLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 14px;
 `;
 
 const BarRow = styled.label`

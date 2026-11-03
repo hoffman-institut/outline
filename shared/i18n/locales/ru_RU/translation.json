@@ -2279,5 +2279,16 @@
   "Empty row": "Пустая запись",
   "Save a row as a template from its menu": "Шаблон сохраняется из меню строки",
   "Save as template": "Сохранить как шаблон",
-  "Could not create the row": "Не удалось создать строку"
+  "Could not create the row": "Не удалось создать строку",
+  "Month": "Месяц",
+  "Week": "Неделя",
+  "Day": "День",
+  "Time": "Время",
+  "Include time": "Указывать время",
+  "Files": "Файлы",
+  "Add files": "Добавить файлы",
+  "Upload failed": "Не удалось загрузить",
+  "Gallery": "Галерея",
+  "Cover": "Обложка",
+  "First files column": "Первый столбец с файлами"
 }

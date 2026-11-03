@@ -4,6 +4,11 @@ import {
   ViewType,
   cellsForFilters,
   computeTotal,
+  dateKey,
+  fileToCell,
+  formatDate,
+  isImage,
+  parseFiles,
   convertValue,
   formatNumber,
   groupRows,
@@ -593,5 +598,67 @@ describe("templates and forms", () => {
       { id: "t1", name: "Встреча", cells: { st: "todo" }, pageId: "p1" },
     ]);
     expect(normalizeDatabase({}).templates).toBeUndefined();
+  });
+});
+
+describe("dates with a time", () => {
+  // Built from local time, so the tests pass in any time zone.
+  const at = (y: number, m: number, d: number, h: number, min = 0) =>
+    new Date(y, m - 1, d, h, min).toISOString();
+
+  it("shows the local day and time", () => {
+    const value = at(2026, 11, 4, 23, 30);
+    expect(dateKey(value)).toBe("2026-11-04");
+    expect(formatDate(value)).toBe("04.11.2026 23:30");
+    expect(formatDate("2026-11-04")).toBe("04.11.2026");
+  });
+
+  it("sorts by the moment and filters by the local day", () => {
+    const column: Column = { ...birthday, withTime: true };
+    const rows: Row[] = [
+      { id: "late", cells: { bd: at(2026, 11, 4, 18) } },
+      { id: "date", cells: { bd: "2026-11-04" } },
+      { id: "early", cells: { bd: at(2026, 11, 4, 9) } },
+    ];
+    const view: View = {
+      id: "v",
+      name: "V",
+      type: ViewType.Table,
+      sort: [{ columnId: "bd", direction: "asc" }],
+      filters: [{ columnId: "bd", operator: "today" }],
+      hidden: [],
+    };
+    expect(
+      rowsForView({ columns: [column], rows }, view, "2026-11-04").map(
+        (r) => r.id
+      )
+    ).toEqual(["date", "early", "late"]);
+  });
+});
+
+describe("files", () => {
+  it("reads stored files and skips broken ones", () => {
+    const photo = {
+      id: "a",
+      name: "photo.jpg",
+      url: "/api/attachments.redirect?id=a",
+    };
+    const value = [
+      fileToCell(photo),
+      "not json",
+      fileToCell({
+        ...photo,
+        id: "b",
+        name: "act.pdf",
+        type: "application/pdf",
+      }),
+    ];
+    const files = parseFiles(value);
+    expect(files.map((f) => f.name)).toEqual(["photo.jpg", "act.pdf"]);
+    expect(isImage(files[0])).toBe(true);
+    expect(isImage(files[1])).toBe(false);
+    expect(
+      displayValue({ id: "f", name: "F", type: ColumnType.Files }, value)
+    ).toBe("photo.jpg, act.pdf");
   });
 });

@@ -2087,5 +2087,16 @@
   "Empty row": "Empty row",
   "Save a row as a template from its menu": "Save a row as a template from its menu",
   "Save as template": "Save as template",
-  "Could not create the row": "Could not create the row"
+  "Could not create the row": "Could not create the row",
+  "Month": "Month",
+  "Week": "Week",
+  "Day": "Day",
+  "Time": "Time",
+  "Include time": "Include time",
+  "Files": "Files",
+  "Add files": "Add files",
+  "Upload failed": "Upload failed",
+  "Gallery": "Gallery",
+  "Cover": "Cover",
+  "First files column": "First files column"
 }

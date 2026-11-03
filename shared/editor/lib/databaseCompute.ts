@@ -8,6 +8,7 @@ import type {
 import {
   ColumnType,
   computeTotal,
+  dateKey,
   displayValue,
   isEmptyValue,
   todayValue,
@@ -95,7 +96,7 @@ function cellToFormula(
     case ColumnType.AutoNumber:
       return typeof value === "number" ? value : String(value);
     case ColumnType.Date:
-      return formulaValue.parseDate(String(value)) ?? null;
+      return formulaValue.parseDate(dateKey(value) ?? "") ?? null;
     default:
       return displayValue(column, value, userName);
   }

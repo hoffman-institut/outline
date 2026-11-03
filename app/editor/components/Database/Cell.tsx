@@ -13,8 +13,12 @@ import type {
 import {
   ColumnType,
   displayValue,
+  fileToCell,
   formatDate,
+  isImage,
   parseDateValue,
+  parseFiles,
+  timeOf,
   todayValue,
 } from "@shared/editor/lib/database";
 import type { LinkedRow } from "@shared/editor/lib/databaseCompute";
@@ -23,6 +27,7 @@ import {
   linkedRows,
 } from "@shared/editor/lib/databaseCompute";
 import { s } from "@shared/styles";
+import { AttachmentPreset } from "@shared/types";
 import { dateLocale, locales } from "@shared/utils/date";
 import { Avatar, AvatarSize } from "~/components/Avatar";
 import {
@@ -33,6 +38,7 @@ import {
 import useStores from "~/hooks/useStores";
 import useUserLocale from "~/hooks/useUserLocale";
 import { client } from "~/utils/ApiClient";
+import { uploadFile } from "~/utils/files";
 import { Chip, MenuRow, PopoverBody, TextInput, stop } from "./components";
 import { useDatabase } from "./context";
 import { databasePos, loadDocument } from "./linked";
@@ -69,9 +75,111 @@ export function Cell(props: CellProps) {
     case ColumnType.AutoNumber:
       // Numbers are given to new rows, they are not typed.
       return <TextCell {...props} editable={false} />;
+    case ColumnType.Files:
+      return <FilesCell {...props} />;
     default:
       return <TextCell {...props} />;
   }
+}
+
+/** Files of a row: attachments of the document, pictures as thumbnails. */
+function FilesCell({ value, editable, onChange }: CellProps) {
+  const { t } = useTranslation();
+  const { documentId } = useDatabase();
+  const input = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+  const stored = Array.isArray(value) ? value : [];
+  const files = parseFiles(value);
+
+  const upload = async (list: FileList | null) => {
+    if (!list?.length) {
+      return;
+    }
+    setUploading(true);
+    setFailed(false);
+    try {
+      const added: string[] = [];
+      for (const file of Array.from(list)) {
+        const attachment = await uploadFile(file, {
+          documentId,
+          name: file.name,
+          preset: AttachmentPreset.DocumentAttachment,
+        });
+        added.push(
+          fileToCell({
+            id: attachment.id,
+            name: attachment.name,
+            url: attachment.url,
+            type: attachment.contentType,
+            size: attachment.size,
+          })
+        );
+      }
+      onChange([...stored, ...added]);
+    } catch {
+      setFailed(true);
+    } finally {
+      setUploading(false);
+      if (input.current) {
+        input.current.value = "";
+      }
+    }
+  };
+
+  const remove = (id: string) =>
+    onChange(stored.filter((item) => parseFiles([item])[0]?.id !== id));
+
+  return (
+    <FilesBox>
+      {files.map((file) => (
+        <FileItem key={file.id}>
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={file.name}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {isImage(file) ? (
+              <Thumb src={file.url} alt={file.name} />
+            ) : (
+              <FileName>{file.name}</FileName>
+            )}
+          </a>
+          {editable && (
+            <RemoveFile
+              type="button"
+              aria-label={t("Remove")}
+              onClick={() => remove(file.id)}
+            >
+              ×
+            </RemoveFile>
+          )}
+        </FileItem>
+      ))}
+      {editable && (
+        <>
+          <AddFile
+            type="button"
+            disabled={uploading}
+            aria-label={t("Add files")}
+            onClick={() => input.current?.click()}
+          >
+            {uploading ? "…" : <PlusIcon size={16} />}
+          </AddFile>
+          <input
+            ref={input}
+            type="file"
+            multiple
+            hidden
+            onChange={(event) => upload(event.target.files)}
+          />
+        </>
+      )}
+      {failed && <FileName>{t("Upload failed")}</FileName>}
+    </FilesBox>
+  );
 }
 
 /** Rows of another database (or this one) linked to the row. */
@@ -478,11 +586,12 @@ function SelectCell({
   );
 }
 
-function DateCell({ value, editable, onChange }: CellProps) {
+function DateCell({ column, value, editable, onChange }: CellProps) {
   const { t } = useTranslation();
   const language = useUserLocale();
   const [open, setOpen] = React.useState(false);
   const parsed = parseDateValue(value);
+  const time = timeOf(value) ?? "";
   const selected = parsed
     ? new Date(parsed.year, parsed.month - 1, parsed.day)
     : undefined;
@@ -492,9 +601,37 @@ function DateCell({ value, editable, onChange }: CellProps) {
     return <CellText>{text}</CellText>;
   }
 
+  // Dates with a time are stored as an instant (UTC) from the local time.
+  const at = (date: Date, hhmm: string) => {
+    const [hours, minutes] = hhmm.split(":").map(Number);
+    return new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      hours,
+      minutes
+    ).toISOString();
+  };
+
   const pick = (date: Date | undefined) => {
+    if (date && column.withTime) {
+      // The popover stays open to set the time.
+      onChange(at(date, time || "09:00"));
+      return;
+    }
     onChange(date ? todayValue(date) : null);
     setOpen(false);
+  };
+
+  const setTime = (next: string) => {
+    if (!selected && !next) {
+      return;
+    }
+    onChange(
+      next
+        ? at(selected ?? new Date(), next)
+        : todayValue(selected ?? new Date())
+    );
   };
 
   return (
@@ -517,6 +654,16 @@ function DateCell({ value, editable, onChange }: CellProps) {
           />
         </DayPickerStyles>
         <PopoverBody>
+          {column.withTime && (
+            <TimeRow>
+              {t("Time")}
+              <TextInput
+                type="time"
+                value={time}
+                onChange={(event) => setTime(event.target.value)}
+              />
+            </TimeRow>
+          )}
           <MenuRow type="button" onClick={() => pick(new Date())}>
             {t("Today")}
           </MenuRow>
@@ -710,6 +857,88 @@ const Chips = styled.span<{ $wrap?: boolean }>`
   flex-wrap: wrap;
   gap: 4px;
   ${(props) => props.$wrap && "padding: 2px 2px 6px;"}
+`;
+
+const FilesBox = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 8px;
+`;
+
+const FileItem = styled.span`
+  position: relative;
+  display: inline-flex;
+
+  &:hover button {
+    opacity: 1;
+  }
+`;
+
+const Thumb = styled.img`
+  display: block;
+  height: 26px;
+  max-width: 60px;
+  border-radius: 3px;
+  object-fit: cover;
+`;
+
+const FileName = styled.span`
+  display: inline-block;
+  max-width: 140px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: ${s("listItemHoverBackground")};
+  color: ${s("text")};
+  font-size: 12px;
+  line-height: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const RemoveFile = styled.button`
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: ${s("text")};
+  color: ${s("background")};
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+`;
+
+const AddFile = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px dashed ${s("divider")};
+  border-radius: 4px;
+  background: none;
+  color: ${s("textTertiary")};
+  cursor: pointer;
+`;
+
+const TimeRow = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 14px;
+
+  input {
+    width: 120px;
+  }
 `;
 
 const Progress = styled.span`

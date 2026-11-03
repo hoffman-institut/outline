@@ -28,7 +28,9 @@ export function FormView() {
     (column) =>
       !view.hidden.includes(column.id) &&
       !calculatedTypes.includes(column.type) &&
-      column.type !== ColumnType.AutoNumber
+      column.type !== ColumnType.AutoNumber &&
+      // Uploads need the right to edit the document.
+      (editable || column.type !== ColumnType.Files)
   );
 
   const submit = async () => {

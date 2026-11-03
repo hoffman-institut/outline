@@ -143,7 +143,7 @@ export function Card({ row, fields }: { row: ComputedRow; fields: Column[] }) {
   );
 }
 
-function CardField({
+export function CardField({
   column,
   value,
   links,
