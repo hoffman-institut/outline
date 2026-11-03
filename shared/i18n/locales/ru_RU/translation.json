@@ -2203,5 +2203,7 @@
   "Select_database": "Выбор",
   "Options_database": "Варианты",
   "Name_database": "Название",
-  "New_database": "Создать"
+  "New_database": "Создать",
+  "Drag to move, click for actions": "Перетащите, чтобы переместить; нажмите — действия",
+  "Remove sorting to reorder rows manually": "Уберите сортировку, чтобы менять порядок строк вручную"
 }

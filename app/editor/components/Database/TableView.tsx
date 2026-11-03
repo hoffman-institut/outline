@@ -1,15 +1,14 @@
-import {
-  MoreIcon,
-  PlusIcon,
-  TrashIcon,
-  DuplicateIcon,
-  OpenIcon,
-} from "outline-icons";
+import { PlusIcon, TrashIcon, DuplicateIcon, OpenIcon } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { Column, Row } from "@shared/editor/lib/database";
-import { ColumnType, moveColumn, newId } from "@shared/editor/lib/database";
+import {
+  ColumnType,
+  moveColumn,
+  newId,
+  rowDropIndex,
+} from "@shared/editor/lib/database";
 import { s } from "@shared/styles";
 import {
   Popover,
@@ -39,6 +38,20 @@ export function TableView({
   const { t } = useTranslation();
   const { data, view, editable, mutator } = useDatabase();
   const columns = data.columns.filter((c) => !view.hidden.includes(c.id));
+  // Manual order only makes sense when the view is not sorted.
+  const reorderable = editable && view.sort.length === 0;
+  const [drop, setDrop] = React.useState<{
+    rowId: string;
+    after: boolean;
+  } | null>(null);
+
+  const dropRow = (rowId: string, targetId: string, after: boolean) => {
+    setDrop(null);
+    const index = rowDropIndex(data.rows, rowId, targetId, after);
+    if (index >= 0) {
+      mutator.moveRow(rowId, index);
+    }
+  };
 
   return (
     <Scroll>
@@ -84,6 +97,17 @@ export function TableView({
               row={row}
               columns={columns}
               autoFocus={row.id === focusRowId}
+              reorderable={reorderable}
+              drop={
+                drop?.rowId === row.id
+                  ? drop.after
+                    ? "after"
+                    : "before"
+                  : null
+              }
+              onDragOverRow={(after) => setDrop({ rowId: row.id, after })}
+              onDropRow={(rowId, after) => dropRow(rowId, row.id, after)}
+              onDragEnd={() => setDrop(null)}
             />
           ))}
         </tbody>
@@ -167,26 +191,77 @@ function HeaderCell({ column }: { column: Column }) {
   );
 }
 
+const ROW_DRAG = "text/x-database-row-order";
+
 function TableRow({
   row,
   columns,
   autoFocus,
+  reorderable,
+  drop,
+  onDragOverRow,
+  onDropRow,
+  onDragEnd,
 }: {
   row: Row;
   columns: Column[];
   autoFocus?: boolean;
+  reorderable: boolean;
+  drop: "before" | "after" | null;
+  onDragOverRow: (after: boolean) => void;
+  onDropRow: (rowId: string, after: boolean) => void;
+  onDragEnd: () => void;
 }) {
   const { t } = useTranslation();
   const { editable, mutator, createOption, openRow } = useDatabase();
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const isBelow = (event: React.DragEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientY > rect.top + rect.height / 2;
+  };
   return (
-    <tr>
+    <DropRow
+      $drop={drop}
+      onDragOver={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes(ROW_DRAG)) {
+          return;
+        }
+        event.preventDefault();
+        onDragOverRow(isBelow(event));
+      }}
+      onDrop={(event) => {
+        const rowId = event.dataTransfer.getData(ROW_DRAG);
+        if (rowId) {
+          event.preventDefault();
+          onDropRow(rowId, isBelow(event));
+        }
+      }}
+    >
       <td>
         {editable && (
           <Popover open={menuOpen} onOpenChange={setMenuOpen}>
             <PopoverTrigger>
-              <RowHandle type="button" aria-label={t("Row actions")}>
-                <MoreIcon size={18} />
+              <RowHandle
+                type="button"
+                aria-label={t("Row actions")}
+                draggable={reorderable}
+                $grab={reorderable}
+                title={
+                  reorderable
+                    ? t("Drag to move, click for actions")
+                    : t("Remove sorting to reorder rows manually")
+                }
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(ROW_DRAG, row.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  const tr = event.currentTarget.closest("tr");
+                  if (tr) {
+                    event.dataTransfer.setDragImage(tr, 16, 17);
+                  }
+                }}
+                onDragEnd={onDragEnd}
+              >
+                <Grip aria-hidden>⠿</Grip>
               </RowHandle>
             </PopoverTrigger>
             <PopoverContent width={220} shrink align="start" onClick={stop}>
@@ -249,7 +324,7 @@ function TableRow({
         </td>
       ))}
       {editable && <td />}
-    </tr>
+    </DropRow>
   );
 }
 
@@ -331,7 +406,26 @@ const HeaderButton = styled.button`
   }
 `;
 
-const RowHandle = styled.button`
+// A line above or below the row shows where a dragged row will land.
+const DropRow = styled.tr<{ $drop: "before" | "after" | null }>`
+  && > td {
+    box-shadow: ${(props) =>
+      props.$drop === "before"
+        ? `inset 0 3px 0 ${props.theme.accent}`
+        : props.$drop === "after"
+          ? `inset 0 -3px 0 ${props.theme.accent}`
+          : "none"};
+  }
+`;
+
+const Grip = styled.span`
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: -1px;
+`;
+
+const RowHandle = styled.button<{ $grab?: boolean }>`
+  cursor: ${(props) => (props.$grab ? "grab" : "pointer")};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -340,7 +434,6 @@ const RowHandle = styled.button`
   border: 0;
   background: none;
   color: ${s("textTertiary")};
-  cursor: pointer;
   opacity: 0;
 
   &:focus-visible,

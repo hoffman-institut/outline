@@ -409,6 +409,33 @@ export function moveColumn(
 }
 
 /**
+ * Index for DatabaseMutator.moveRow when a row is dropped next to another.
+ * Rows hidden by a filter keep their places.
+ *
+ * @param rows all rows in document order.
+ * @param rowId the dragged row.
+ * @param targetId the row it was dropped on.
+ * @param after drop below the target instead of above.
+ * @returns the index among the other rows, or -1 when nothing moves.
+ */
+export function rowDropIndex(
+  rows: Row[],
+  rowId: string,
+  targetId: string,
+  after: boolean
+): number {
+  if (rowId === targetId) {
+    return -1;
+  }
+  const rest = rows.filter((r) => r.id !== rowId);
+  const index = rest.findIndex((r) => r.id === targetId);
+  if (index < 0 || rest.length === rows.length) {
+    return -1;
+  }
+  return after ? index + 1 : index;
+}
+
+/**
  * Option names that a type change needs to create, e.g. when text becomes a
  * select column.
  */

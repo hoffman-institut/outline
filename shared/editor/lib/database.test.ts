@@ -6,6 +6,7 @@ import {
   daysUntilAnniversary,
   displayValue,
   moveColumn,
+  rowDropIndex,
   matchesFilter,
   normalizeDatabase,
   rowsForView,
@@ -194,5 +195,23 @@ describe("moveColumn", () => {
 
   it("keeps the order when dropped on itself", () => {
     expect(moveColumn(columns, "bd", "bd", true)).toBe(columns);
+  });
+});
+
+describe("rowDropIndex", () => {
+  const rows: Row[] = ["a", "b", "c", "d"].map((id) => ({ id, cells: {} }));
+
+  it("drops above a later row", () => {
+    // Without "a": b c d, above "c" -> index 1 -> b a c d.
+    expect(rowDropIndex(rows, "a", "c", false)).toBe(1);
+  });
+
+  it("drops below the last row", () => {
+    expect(rowDropIndex(rows, "b", "d", true)).toBe(3);
+  });
+
+  it("ignores a drop on itself or an unknown row", () => {
+    expect(rowDropIndex(rows, "b", "b", true)).toBe(-1);
+    expect(rowDropIndex(rows, "x", "b", true)).toBe(-1);
   });
 });
