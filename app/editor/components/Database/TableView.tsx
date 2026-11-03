@@ -25,7 +25,13 @@ import {
 } from "~/components/primitives/Popover";
 import { Cell } from "./Cell";
 import { ColumnMenu, ColumnTypeIcon } from "./ColumnMenu";
-import { CellError, MenuRow, PopoverBody, stop } from "./components";
+import {
+  CellError,
+  MenuRow,
+  PopoverBody,
+  stop,
+  useTotalLabels,
+} from "./components";
 import { useDatabase, useUpdateView } from "./context";
 
 const defaultWidth = (type: ColumnType) =>
@@ -291,26 +297,6 @@ function HeaderCell({
   );
 }
 
-function useTotalLabels(): Record<TotalKind, string> {
-  const { t } = useTranslation();
-  return {
-    count: t("Count"),
-    not_empty: t("Not empty"),
-    empty: t("Empty"),
-    percent_not_empty: t("Percent not empty"),
-    unique: t("Unique"),
-    sum: t("Sum"),
-    avg: t("Average"),
-    min: t("Min"),
-    max: t("Max"),
-    earliest: t("Earliest"),
-    latest: t("Latest"),
-    checked: t("Checked"),
-    unchecked: t("Unchecked"),
-    percent_checked: t("Percent checked"),
-  };
-}
-
 function formatTotal(kind: TotalKind, value: number | string | undefined) {
   if (value === undefined) {
     return "—";
@@ -526,6 +512,7 @@ function TableRow({
             <Cell
               column={column}
               value={row.cells[column.id]}
+              links={row.links?.[column.id]}
               editable={editable && !isComputed(column)}
               autoFocus={autoFocus && index === 0 && !isComputed(column)}
               onChange={(value) =>

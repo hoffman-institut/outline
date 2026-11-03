@@ -1,6 +1,11 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import styled, { css, useTheme } from "styled-components";
-import type { OptionColor, SelectOption } from "@shared/editor/lib/database";
+import type {
+  OptionColor,
+  SelectOption,
+  TotalKind,
+} from "@shared/editor/lib/database";
 import { optionColors, optionPalette } from "@shared/editor/lib/database";
 import { s } from "@shared/styles";
 
@@ -227,4 +232,25 @@ export const PopoverBody = styled.div`
 /** Stops clicks in popovers from reaching the editor below. */
 export function stop(event: React.SyntheticEvent) {
   event.stopPropagation();
+}
+
+/** Names of column totals and rollup calculations. */
+export function useTotalLabels(): Record<TotalKind, string> {
+  const { t } = useTranslation();
+  return {
+    count: t("Count"),
+    not_empty: t("Not empty"),
+    empty: t("Empty"),
+    percent_not_empty: t("Percent not empty"),
+    unique: t("Unique"),
+    sum: t("Sum"),
+    avg: t("Average"),
+    min: t("Min"),
+    max: t("Max"),
+    earliest: t("Earliest"),
+    latest: t("Latest"),
+    checked: t("Checked"),
+    unchecked: t("Unchecked"),
+    percent_checked: t("Percent checked"),
+  };
 }

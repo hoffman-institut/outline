@@ -1,7 +1,11 @@
 import { observer } from "mobx-react";
 import * as React from "react";
 import styled, { css } from "styled-components";
-import type { Column, SelectOption } from "@shared/editor/lib/database";
+import type {
+  Column,
+  DatabaseRef,
+  SelectOption,
+} from "@shared/editor/lib/database";
 import {
   ViewType,
   newId,
@@ -12,6 +16,7 @@ import { computeDatabase } from "@shared/editor/lib/databaseCompute";
 import { databaseFromNode } from "@shared/editor/nodes/Database";
 import type { ComponentProps } from "@shared/editor/types";
 import { s } from "@shared/styles";
+import { useDocumentContext } from "~/components/DocumentContext";
 import useStores from "~/hooks/useStores";
 import { BoardView } from "./BoardView";
 import { CalendarView } from "./CalendarView";
@@ -20,6 +25,7 @@ import { TableView } from "./TableView";
 import { DatabaseTitle, ViewToolbar } from "./ViewToolbar";
 import type { DatabaseContextValue } from "./context";
 import { DatabaseContext } from "./context";
+import { useLinkedDatabases } from "./linked";
 import { DatabaseMutator } from "./mutations";
 
 const storageKey = (id: string) => `database-view:${id}`;
@@ -44,7 +50,15 @@ function DatabaseBlock({
   isSelected,
 }: ComponentProps) {
   const { users } = useStores();
+  const { document } = useDocumentContext();
   const data = React.useMemo(() => databaseFromNode(node), [node]);
+  const linked = useLinkedDatabases(
+    data.columns
+      .map((column) => column.relation)
+      .filter((ref): ref is DatabaseRef => !!ref),
+    editorView,
+    document?.id
+  );
   const mutator = React.useMemo(
     () => new DatabaseMutator(editorView, getPos),
     [editorView, getPos]
@@ -97,6 +111,7 @@ function DatabaseBlock({
 
   const computed = computeDatabase(data, {
     userName: (id) => users.get(id)?.name,
+    related: linked.get,
   });
   const rows = rowsForView(computed, activeView);
   const openRow = computed.rows.find((row) => row.id === openRowId);
@@ -104,6 +119,10 @@ function DatabaseBlock({
   const context: DatabaseContextValue = {
     data,
     computed,
+    databaseId: node.attrs.id,
+    documentId: document?.id,
+    linked,
+    editorView,
     view: activeView,
     mutator,
     editable: isEditable,

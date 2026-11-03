@@ -117,6 +117,7 @@ export function RowPanel({
                 <Cell
                   column={column}
                   value={row.cells[column.id]}
+                  links={row.links?.[column.id]}
                   editable={editable && !isComputed(column)}
                   onChange={(value) =>
                     mutator.setCells(row.id, { [column.id]: value })

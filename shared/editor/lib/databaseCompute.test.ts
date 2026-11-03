@@ -1,4 +1,4 @@
-import type { Column, Row } from "./database";
+import type { Column, DatabaseData, Row } from "./database";
 import { ColumnType } from "./database";
 import { computeDatabase, isComputed } from "./databaseCompute";
 
@@ -120,5 +120,140 @@ describe("computeDatabase", () => {
     // An empty quantity gives an empty result, not a division error.
     expect(second.errors?.d).toBeUndefined();
     expect(second.cells.d).toBeNull();
+  });
+});
+
+describe("computeDatabase with relations", () => {
+  const peopleRef = { documentId: "doc-team", databaseId: "people" };
+  const projectsRef = { documentId: "doc-projects", databaseId: "projects" };
+  const people: DatabaseData = {
+    title: "Сотрудники",
+    views: [],
+    columns: [
+      { id: "pn", name: "Имя", type: ColumnType.Text },
+      { id: "ps", name: "Ставка", type: ColumnType.Number },
+      { id: "pd", name: "Начало", type: ColumnType.Date },
+      {
+        id: "pb",
+        name: "Проекты",
+        type: ColumnType.Backlink,
+        relation: { ...projectsRef, columnId: "team" },
+      },
+    ],
+    rows: [
+      { id: "p1", cells: { pn: "Анна", ps: 100, pd: "2024-03-01" } },
+      { id: "p2", cells: { pn: "Борис", ps: 200, pd: "2023-01-15" } },
+      { id: "p3", cells: { pn: "Вера", ps: 300 } },
+    ],
+  };
+  const team: Column = {
+    id: "team",
+    name: "Команда",
+    type: ColumnType.Relation,
+    relation: peopleRef,
+  };
+  const rollup = (
+    id: string,
+    name: string,
+    targetColumnId: string,
+    fn: NonNullable<Column["rollup"]>["fn"]
+  ): Column => ({
+    id,
+    name,
+    type: ColumnType.Rollup,
+    rollup: { columnId: "team", targetColumnId, fn },
+  });
+  const projects: DatabaseData = {
+    title: "Проекты",
+    views: [],
+    columns: [
+      { id: "name", name: "Проект", type: ColumnType.Text },
+      team,
+      rollup("sum", "Сумма ставок", "ps", "sum"),
+      rollup("cnt", "Людей", "pn", "count"),
+      rollup("names", "Кто", "pn", "values"),
+      rollup("first", "С кого начали", "pd", "earliest"),
+      formula("f", "Большая", "СЧЁТЗ([Команда]) >= 2"),
+    ],
+    rows: [
+      { id: "r1", cells: { name: "Сайт", team: ["p1", "p2", "gone"] } },
+      { id: "r2", cells: { name: "Склад", team: [] } },
+    ],
+  };
+  const related = (ref: { documentId: string; databaseId: string }) =>
+    ref.databaseId === "people"
+      ? people
+      : ref.databaseId === "projects"
+        ? projects
+        : undefined;
+
+  it("shows linked rows and skips deleted ones", () => {
+    const result = computeDatabase(projects, { related });
+    expect(result.rows[0].links?.team).toEqual([
+      { id: "p1", title: "Анна" },
+      { id: "p2", title: "Борис" },
+    ]);
+    // Stored ids stay as they are.
+    expect(result.rows[0].cells.team).toEqual(["p1", "p2", "gone"]);
+    expect(result.columns[1].source).toBeUndefined();
+  });
+
+  it("calculates rollups and formulas over relations", () => {
+    const result = computeDatabase(projects, { related });
+    const [site, store] = result.rows;
+    expect(result.columns.find((c) => c.id === "sum")?.type).toBe(
+      ColumnType.Number
+    );
+    expect(result.columns.find((c) => c.id === "first")?.type).toBe(
+      ColumnType.Date
+    );
+    expect(site.cells.sum).toBe(300);
+    expect(site.cells.cnt).toBe(2);
+    expect(site.cells.names).toBe("Анна, Борис");
+    expect(site.cells.first).toBe("2023-01-15");
+    expect(site.cells.f).toBe(true);
+    expect(store.cells.sum).toBe(0);
+    expect(store.cells.cnt).toBe(0);
+    expect(store.cells.first).toBeNull();
+    expect(store.cells.f).toBe(false);
+  });
+
+  it("finds backlinks", () => {
+    const result = computeDatabase(people, { related });
+    const backlink = result.columns.find((c) => c.id === "pb");
+    expect(backlink?.source).toBeDefined();
+    expect(result.rows.map((r) => r.cells.pb)).toEqual([["r1"], ["r1"], []]);
+    expect(result.rows[0].links?.pb).toEqual([{ id: "r1", title: "Сайт" }]);
+  });
+
+  it("waits for a linked database without errors", () => {
+    const result = computeDatabase(projects, { related: () => undefined });
+    expect(result.rows[0].links?.team).toEqual([
+      { id: "p1", title: "" },
+      { id: "p2", title: "" },
+      { id: "gone", title: "" },
+    ]);
+    expect(result.rows[0].cells.sum).toBeNull();
+    expect(result.rows[0].errors).toBeUndefined();
+  });
+
+  it("reports a rollup without a relation", () => {
+    const broken: Column = {
+      id: "b",
+      name: "Сломанная",
+      type: ColumnType.Rollup,
+      rollup: { columnId: "nope", targetColumnId: "ps", fn: "sum" },
+    };
+    const result = computeDatabase(
+      { columns: [...projects.columns, broken], rows: projects.rows },
+      { related }
+    );
+    expect(result.rows[0].errors?.b).toBe("сводка: выберите связь");
+  });
+
+  it("does not follow links of linked databases", () => {
+    // People link back to projects and projects to people: no loop.
+    const result = computeDatabase(people, { related });
+    expect(result.rows).toHaveLength(3);
   });
 });

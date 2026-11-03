@@ -1,3 +1,4 @@
+import type { EditorView } from "prosemirror-view";
 import * as React from "react";
 import type {
   Column,
@@ -6,13 +7,20 @@ import type {
   View,
 } from "@shared/editor/lib/database";
 import type { ComputedDatabase } from "@shared/editor/lib/databaseCompute";
+import type { LinkedDatabases } from "./linked";
 import type { DatabaseMutator } from "./mutations";
 
 export type DatabaseContextValue = {
   /** Stored data: the only source for changes. */
   data: DatabaseData;
-  /** Data with calculated formula columns, for display, sorting and filters. */
+  /** Data with calculated columns, for display, sorting and filters. */
   computed: ComputedDatabase;
+  /** Id of this database block and of its document. */
+  databaseId: string;
+  documentId?: string;
+  /** Databases that relations of this block link to. */
+  linked: LinkedDatabases;
+  editorView: EditorView;
   view: View;
   mutator: DatabaseMutator;
   editable: boolean;

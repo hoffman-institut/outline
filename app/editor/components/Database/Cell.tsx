@@ -2,6 +2,7 @@ import { CheckmarkIcon, PlusIcon } from "outline-icons";
 import { observer } from "mobx-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import styled from "styled-components";
 import { Calendar } from "@shared/components/Calendar";
 import type {
@@ -15,6 +16,11 @@ import {
   parseDateValue,
   todayValue,
 } from "@shared/editor/lib/database";
+import type { LinkedRow } from "@shared/editor/lib/databaseCompute";
+import {
+  computeDatabase,
+  linkedRows,
+} from "@shared/editor/lib/databaseCompute";
 import { s } from "@shared/styles";
 import { dateLocale, locales } from "@shared/utils/date";
 import { Avatar, AvatarSize } from "~/components/Avatar";
@@ -26,6 +32,7 @@ import {
 import useStores from "~/hooks/useStores";
 import useUserLocale from "~/hooks/useUserLocale";
 import { Chip, MenuRow, PopoverBody, TextInput, stop } from "./components";
+import { useDatabase } from "./context";
 
 export type CellProps = {
   column: Column;
@@ -36,6 +43,8 @@ export type CellProps = {
   onCreateOption: (name: string) => SelectOption;
   /** Opens the editor immediately (new rows, keyboard navigation). */
   autoFocus?: boolean;
+  /** Relation and backlink cells: the linked rows with their titles. */
+  links?: LinkedRow[];
 };
 
 /** Displays a cell and, when editable, lets the user change it in place. */
@@ -50,9 +59,112 @@ export function Cell(props: CellProps) {
       return <DateCell {...props} />;
     case ColumnType.Person:
       return <PersonCell {...props} />;
+    case ColumnType.Relation:
+    case ColumnType.Backlink:
+      return <RelationCell {...props} />;
     default:
       return <TextCell {...props} />;
   }
+}
+
+/** Rows of another database (or this one) linked to the row. */
+function RelationCell({ column, value, links, editable, onChange }: CellProps) {
+  const { t } = useTranslation();
+  const { linked } = useDatabase();
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const ref = column.relation;
+  const status = ref ? linked.status(ref.documentId) : "error";
+  const shown = links ?? [];
+  const selectedIds = Array.isArray(value) ? value : [];
+
+  const chips = (
+    <Chips>
+      {shown.map((row) => (
+        <LinkChip key={row.id}>
+          {row.title || (status === "loading" ? "…" : t("Untitled"))}
+        </LinkChip>
+      ))}
+    </Chips>
+  );
+
+  if (!editable || column.type !== ColumnType.Relation) {
+    return <CellText>{chips}</CellText>;
+  }
+
+  const target = ref ? linked.get(ref) : undefined;
+  const candidates = target ? linkedRows(computeDatabase(target)) : [];
+  const trimmed = query.trim().toLowerCase();
+  const matches = candidates.filter((row) =>
+    (row.title || t("Untitled")).toLowerCase().includes(trimmed)
+  );
+  const document = ref ? linked.document(ref.documentId) : undefined;
+
+  const toggle = (rowId: string) => {
+    // Ids of rows deleted from the linked database are dropped on change.
+    const existing = selectedIds.filter((id) =>
+      candidates.some((row) => row.id === id)
+    );
+    onChange(
+      existing.includes(rowId)
+        ? existing.filter((id) => id !== rowId)
+        : [...existing, rowId]
+    );
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger>
+        <CellButton type="button">{chips}</CellButton>
+      </PopoverTrigger>
+      <PopoverContent width={280} shrink align="start" onClick={stop}>
+        <PopoverBody>
+          {!ref ? (
+            <Hint>{t("Choose the linked database in the column menu")}</Hint>
+          ) : status === "error" ? (
+            <Hint>{t("No access to the linked database")}</Hint>
+          ) : !target ? (
+            <Hint>
+              {status === "loading"
+                ? t("Loading…")
+                : t("Linked database not found")}
+            </Hint>
+          ) : (
+            <>
+              <TextInput
+                autoFocus
+                placeholder={t("Search")}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <OptionList>
+                {matches.map((row) => (
+                  <MenuRow
+                    key={row.id}
+                    type="button"
+                    onClick={() => toggle(row.id)}
+                  >
+                    <LinkChip>{row.title || t("Untitled")}</LinkChip>
+                    {selectedIds.includes(row.id) && (
+                      <Right>
+                        <CheckmarkIcon size={18} />
+                      </Right>
+                    )}
+                  </MenuRow>
+                ))}
+                {matches.length === 0 && <Hint>{t("No rows")}</Hint>}
+              </OptionList>
+            </>
+          )}
+          {document && (
+            <Hint>
+              <Link to={document.url}>{document.title || t("Untitled")}</Link>
+            </Hint>
+          )}
+        </PopoverBody>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function linkFor(type: ColumnType, text: string): string | undefined {
@@ -509,6 +621,30 @@ const Chips = styled.span<{ $wrap?: boolean }>`
   flex-wrap: wrap;
   gap: 4px;
   ${(props) => props.$wrap && "padding: 2px 2px 6px;"}
+`;
+
+const LinkChip = styled.span`
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: ${s("listItemHoverBackground")};
+  color: ${s("text")};
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const Hint = styled.div`
+  padding: 6px 8px;
+  color: ${s("textTertiary")};
+  font-size: 13px;
+
+  a {
+    color: ${s("accent")};
+  }
 `;
 
 const OptionList = styled.div`

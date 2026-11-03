@@ -12,7 +12,10 @@ import {
   InsertRightIcon,
   LinkIcon,
   BulletedListIcon,
+  GoToIcon,
   MathIcon,
+  ReturnIcon,
+  SummaryIcon,
   KeyboardIcon,
   SortAscendingIcon,
   SortDescendingIcon,
@@ -36,9 +39,11 @@ import {
   nextOptionColor,
   optionNamesFor,
 } from "@shared/editor/lib/database";
+import { calculatedTypes } from "@shared/editor/lib/databaseCompute";
 import { renameFormulaRef } from "@shared/editor/lib/formula";
 import { s } from "@shared/styles";
 import { FormulaEditor } from "./FormulaEditor";
+import { BacklinkEditor, RelationEditor, RollupEditor } from "./LinkEditors";
 import {
   ColorPicker,
   Chip,
@@ -103,6 +108,21 @@ export function useColumnTypes() {
         type: ColumnType.Formula,
         label: t("Formula"),
         icon: <MathIcon size={18} />,
+      },
+      {
+        type: ColumnType.Relation,
+        label: t("Relation"),
+        icon: <GoToIcon size={18} />,
+      },
+      {
+        type: ColumnType.Backlink,
+        label: t("Backlink"),
+        icon: <ReturnIcon size={18} />,
+      },
+      {
+        type: ColumnType.Rollup,
+        label: t("Rollup"),
+        icon: <SummaryIcon size={18} />,
       },
     ],
     [t]
@@ -169,9 +189,11 @@ export function ColumnMenu({
     if (column.width) {
       next.width = column.width;
     }
-    if (type === ColumnType.Formula) {
-      // Stored values are replaced by the results of the formula.
-      next.formula = "";
+    if (calculatedTypes.includes(type)) {
+      // Stored values are replaced by calculated ones.
+      if (type === ColumnType.Formula) {
+        next.formula = "";
+      }
       setColumns(
         data.columns.map((c) => (c.id === column.id ? next : c)),
         (cells) => {
@@ -181,14 +203,33 @@ export function ColumnMenu({
       );
       return;
     }
-    // A formula column keeps its current results as values.
-    const isFormula = column.type === ColumnType.Formula;
-    const from = computed.columns.find((c) => c.id === column.id) ?? column;
-    const fromRows = isFormula ? computed.rows : data.rows;
+    // Calculated columns keep their current results as values, relations
+    // the titles of the linked rows.
+    const isLink =
+      column.type === ColumnType.Relation ||
+      column.type === ColumnType.Backlink;
+    const isCalculated = calculatedTypes.includes(column.type);
+    const from: Column = isLink
+      ? { ...column, type: ColumnType.Text }
+      : (computed.columns.find((c) => c.id === column.id) ?? column);
+    const shownValue = (rowId: string): CellValue | undefined => {
+      const row = computed.rows.find((r) => r.id === rowId);
+      return isLink
+        ? (row?.links?.[column.id] ?? [])
+            .map((link) => link.title)
+            .filter(Boolean)
+            .join(", ")
+        : row?.cells[column.id];
+    };
     const valueOf = (rowId: string, cells: Record<string, CellValue>) =>
-      isFormula
-        ? computed.rows.find((row) => row.id === rowId)?.cells[column.id]
-        : cells[column.id];
+      isLink || isCalculated ? shownValue(rowId) : cells[column.id];
+    const fromRows =
+      isLink || isCalculated
+        ? data.rows.map((row) => ({
+            ...row,
+            cells: { ...row.cells, [column.id]: shownValue(row.id) ?? null },
+          }))
+        : data.rows;
     if (isSelectType(type)) {
       if (isSelectType(column.type)) {
         next.options = column.options ?? [];
@@ -295,6 +336,13 @@ export function ColumnMenu({
         ))}
       {isSelectType(column.type) && <OptionsEditor column={column} />}
       {column.type === ColumnType.Formula && <FormulaEditor column={column} />}
+      {column.type === ColumnType.Relation && (
+        <RelationEditor column={column} />
+      )}
+      {column.type === ColumnType.Backlink && (
+        <BacklinkEditor column={column} />
+      )}
+      {column.type === ColumnType.Rollup && <RollupEditor column={column} />}
       <MenuDivider />
       {valueType === ColumnType.Date && (
         <MenuRow type="button" onClick={() => sort("asc", true)}>

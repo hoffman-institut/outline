@@ -3,6 +3,10 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { CellValue, Column, Row } from "@shared/editor/lib/database";
+import type {
+  ComputedRow,
+  LinkedRow,
+} from "@shared/editor/lib/databaseCompute";
 import {
   ColumnType,
   displayValue,
@@ -112,7 +116,7 @@ export function BoardView({ rows }: { rows: Row[] }) {
 }
 
 /** Compact preview of a row used by board and calendar views. */
-export function Card({ row, fields }: { row: Row; fields: Column[] }) {
+export function Card({ row, fields }: { row: ComputedRow; fields: Column[] }) {
   const { t } = useTranslation();
   const { computed, editable, openRow } = useDatabase();
   const titleColumn = computed.columns[0];
@@ -134,6 +138,7 @@ export function Card({ row, fields }: { row: Row; fields: Column[] }) {
           key={column.id}
           column={column}
           value={row.cells[column.id]}
+          links={row.links?.[column.id]}
         />
       ))}
     </CardBox>
@@ -143,10 +148,16 @@ export function Card({ row, fields }: { row: Row; fields: Column[] }) {
 function CardField({
   column,
   value,
+  links,
 }: {
   column: Column;
   value: CellValue | undefined;
+  links?: LinkedRow[];
 }) {
+  if (links) {
+    const titles = links.map((row) => row.title).filter(Boolean);
+    return titles.length ? <FieldText>{titles.join(", ")}</FieldText> : null;
+  }
   if (isEmptyValue(value)) {
     return null;
   }

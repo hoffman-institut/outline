@@ -18,6 +18,9 @@ export enum ColumnType {
   Email = "email",
   Phone = "phone",
   Formula = "formula",
+  Relation = "relation",
+  Backlink = "backlink",
+  Rollup = "rollup",
 }
 
 export enum ViewType {
@@ -54,6 +57,31 @@ export type Column = {
   width?: number;
   /** Formula columns: the formula, e.g. "[Цена] * [Количество]". */
   formula?: string;
+  /**
+   * Relation columns: the linked database. Backlink columns: the database
+   * whose relation column (columnId) links to this one.
+   */
+  relation?: DatabaseRef;
+  /** Rollup columns: what to calculate over the linked rows. */
+  rollup?: Rollup;
+};
+
+/** A database block in a document. */
+export type DatabaseRef = {
+  documentId: string;
+  databaseId: string;
+  /** Backlinks: the relation column of the other database. */
+  columnId?: string;
+};
+
+export type RollupFunction = TotalKind | "values";
+
+export type Rollup = {
+  /** Relation or backlink column of this database. */
+  columnId: string;
+  /** Column of the linked database. */
+  targetColumnId: string;
+  fn: RollupFunction;
 };
 
 export type SortDirection = "asc" | "desc";
@@ -343,6 +371,10 @@ export function displayValue(
       const ids = Array.isArray(value) ? value : [];
       return ids.map((id) => userName?.(id) ?? id).join(", ");
     }
+    case ColumnType.Relation:
+    case ColumnType.Backlink:
+      // Row ids; the titles live in the linked database.
+      return "";
     case ColumnType.Number:
       return typeof value === "number" ? String(value) : String(value ?? "");
     default:
@@ -394,6 +426,10 @@ export function convertValue(
         .filter((id): id is string => !!id);
     case ColumnType.Person:
       return Array.isArray(value) && from.type === ColumnType.Person
+        ? value
+        : [];
+    case ColumnType.Relation:
+      return Array.isArray(value) && from.type === ColumnType.Relation
         ? value
         : [];
     default:
@@ -662,6 +698,9 @@ export function operatorsFor(type: ColumnType): FilterOperator[] {
       return ["is", "before", "after", "next_days", "is_empty", "is_not_empty"];
     case ColumnType.Checkbox:
       return ["checked", "unchecked"];
+    case ColumnType.Relation:
+    case ColumnType.Backlink:
+      return ["is_empty", "is_not_empty"];
     default:
       return [
         "contains",
@@ -816,6 +855,31 @@ export function normalizeDatabase(input: unknown): DatabaseData {
             : {}),
           ...(typeof c.width === "number" ? { width: c.width } : {}),
           ...(typeof c.formula === "string" ? { formula: c.formula } : {}),
+          ...(c.relation &&
+          typeof c.relation.documentId === "string" &&
+          typeof c.relation.databaseId === "string"
+            ? {
+                relation: {
+                  documentId: c.relation.documentId,
+                  databaseId: c.relation.databaseId,
+                  ...(typeof c.relation.columnId === "string"
+                    ? { columnId: c.relation.columnId }
+                    : {}),
+                },
+              }
+            : {}),
+          ...(c.rollup &&
+          typeof c.rollup.columnId === "string" &&
+          typeof c.rollup.targetColumnId === "string" &&
+          (c.rollup.fn === "values" || allTotals.includes(c.rollup.fn))
+            ? {
+                rollup: {
+                  columnId: c.rollup.columnId,
+                  targetColumnId: c.rollup.targetColumnId,
+                  fn: c.rollup.fn,
+                },
+              }
+            : {}),
         }))
     : [];
   const views: View[] = Array.isArray(raw.views)
