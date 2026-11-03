@@ -2205,5 +2205,19 @@
   "Name_database": "Название",
   "New_database": "Создать",
   "Drag to move, click for actions": "Перетащите, чтобы переместить; нажмите — действия",
-  "Remove sorting to reorder rows manually": "Уберите сортировку, чтобы менять порядок строк вручную"
+  "Remove sorting to reorder rows manually": "Уберите сортировку, чтобы менять порядок строк вручную",
+  "Count": "Всего",
+  "Not empty": "Заполнено",
+  "Percent not empty": "% заполнено",
+  "Unique": "Уникальных",
+  "Sum": "Сумма",
+  "Average": "Среднее",
+  "Min": "Мин.",
+  "Max": "Макс.",
+  "Earliest": "Самая ранняя",
+  "Latest": "Самая поздняя",
+  "Checked": "Отмечено",
+  "Unchecked": "Не отмечено",
+  "Percent checked": "% отмечено",
+  "Calculate": "Итог"
 }

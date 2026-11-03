@@ -97,7 +97,25 @@ export type View = {
   dateColumn?: string;
   /** Calendar view: repeat dates every year (birthdays, anniversaries). */
   recurring?: boolean;
+  /** Table view: the total shown under each column, by column id. */
+  totals?: Record<string, TotalKind>;
 };
+
+export type TotalKind =
+  | "count"
+  | "not_empty"
+  | "empty"
+  | "percent_not_empty"
+  | "unique"
+  | "sum"
+  | "avg"
+  | "min"
+  | "max"
+  | "earliest"
+  | "latest"
+  | "checked"
+  | "unchecked"
+  | "percent_checked";
 
 export type CellValue = string | number | boolean | string[] | null;
 
@@ -653,6 +671,102 @@ export function operatorsFor(type: ColumnType): FilterOperator[] {
   }
 }
 
+/** Totals offered under a column of the given type. */
+export function totalsFor(type: ColumnType): TotalKind[] {
+  switch (type) {
+    case ColumnType.Number:
+      return ["count", "not_empty", "empty", "sum", "avg", "min", "max"];
+    case ColumnType.Date:
+      return ["count", "not_empty", "empty", "earliest", "latest"];
+    case ColumnType.Checkbox:
+      return ["count", "checked", "unchecked", "percent_checked"];
+    default:
+      return ["count", "not_empty", "empty", "percent_not_empty", "unique"];
+  }
+}
+
+const allTotals: TotalKind[] = [
+  "count",
+  "not_empty",
+  "empty",
+  "percent_not_empty",
+  "unique",
+  "sum",
+  "avg",
+  "min",
+  "max",
+  "earliest",
+  "latest",
+  "checked",
+  "unchecked",
+  "percent_checked",
+];
+
+/**
+ * Calculates a column total over the rows of a view.
+ *
+ * @param kind what to calculate.
+ * @param values the column values of the rows.
+ * @returns a number (percents are 0-100), a date as "YYYY-MM-DD", or
+ * undefined when there is nothing to calculate.
+ */
+export function computeTotal(
+  kind: TotalKind,
+  values: (CellValue | undefined)[]
+): number | string | undefined {
+  const filled = values.filter((v) => !isEmptyValue(v));
+  const percent = (part: number) =>
+    values.length ? Math.round((part / values.length) * 100) : undefined;
+  const numbers = filled
+    .map((v) => (typeof v === "number" ? v : parseFloat(String(v))))
+    .filter((n) => Number.isFinite(n));
+  const dates = filled
+    .filter((v) => parseDateValue(v))
+    .map((v) => String(v).slice(0, 10))
+    .sort();
+  switch (kind) {
+    case "count":
+      return values.length;
+    case "not_empty":
+      return filled.length;
+    case "empty":
+      return values.length - filled.length;
+    case "percent_not_empty":
+      return percent(filled.length);
+    case "unique": {
+      const seen = new Set<string>();
+      for (const value of filled) {
+        (Array.isArray(value) ? value : [String(value)]).forEach((v) =>
+          seen.add(v)
+        );
+      }
+      return seen.size;
+    }
+    case "sum":
+      return numbers.reduce((a, b) => a + b, 0);
+    case "avg":
+      return numbers.length
+        ? numbers.reduce((a, b) => a + b, 0) / numbers.length
+        : undefined;
+    case "min":
+      return numbers.length ? Math.min(...numbers) : undefined;
+    case "max":
+      return numbers.length ? Math.max(...numbers) : undefined;
+    case "earliest":
+      return dates[0];
+    case "latest":
+      return dates[dates.length - 1];
+    case "checked":
+      return values.filter((v) => !!v).length;
+    case "unchecked":
+      return values.filter((v) => !v).length;
+    case "percent_checked":
+      return percent(values.filter((v) => !!v).length);
+    default:
+      return undefined;
+  }
+}
+
 /**
  * Plain text of a database for search and previews: title, column names and
  * every row as "value · value".
@@ -715,6 +829,15 @@ export function normalizeDatabase(input: unknown): DatabaseData {
           ...(v.groupBy ? { groupBy: v.groupBy } : {}),
           ...(v.dateColumn ? { dateColumn: v.dateColumn } : {}),
           ...(v.recurring ? { recurring: true } : {}),
+          ...(v.totals && typeof v.totals === "object"
+            ? {
+                totals: Object.fromEntries(
+                  Object.entries(v.totals).filter(([, kind]) =>
+                    allTotals.includes(kind)
+                  )
+                ),
+              }
+            : {}),
         }))
     : [];
   const rows: Row[] = Array.isArray(raw.rows)

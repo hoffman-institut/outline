@@ -2,12 +2,20 @@ import { PlusIcon, TrashIcon, DuplicateIcon, OpenIcon } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
-import type { Column, Row } from "@shared/editor/lib/database";
+import type {
+  CellValue,
+  Column,
+  Row,
+  TotalKind,
+} from "@shared/editor/lib/database";
 import {
   ColumnType,
+  computeTotal,
+  formatDate,
   moveColumn,
   newId,
   rowDropIndex,
+  totalsFor,
 } from "@shared/editor/lib/database";
 import { s } from "@shared/styles";
 import {
@@ -18,7 +26,7 @@ import {
 import { Cell } from "./Cell";
 import { ColumnMenu, ColumnTypeIcon } from "./ColumnMenu";
 import { MenuRow, PopoverBody, stop } from "./components";
-import { useDatabase } from "./context";
+import { useDatabase, useUpdateView } from "./context";
 
 const defaultWidth = (type: ColumnType) =>
   type === ColumnType.Checkbox
@@ -26,6 +34,9 @@ const defaultWidth = (type: ColumnType) =>
     : type === ColumnType.Number || type === ColumnType.Date
       ? 140
       : 200;
+
+const clampWidth = (width: number) =>
+  Math.min(1000, Math.max(60, Math.round(width)));
 
 /** Spreadsheet-like view: one row per record, one column per field. */
 export function TableView({
@@ -53,16 +64,35 @@ export function TableView({
     }
   };
 
+  // Width of a column being resized, shown live and saved on release.
+  const [resize, setResize] = React.useState<{
+    columnId: string;
+    width: number;
+  } | null>(null);
+  const widthOf = (column: Column) =>
+    resize?.columnId === column.id
+      ? resize.width
+      : (column.width ?? defaultWidth(column.type));
+
+  const saveWidth = (column: Column, width: number) => {
+    setResize(null);
+    if (width !== (column.width ?? defaultWidth(column.type))) {
+      mutator.setColumns(
+        data.columns.map((c) => (c.id === column.id ? { ...c, width } : c))
+      );
+    }
+  };
+
+  const showTotals =
+    editable || columns.some((column) => view.totals?.[column.id]);
+
   return (
     <Scroll>
       <Table>
         <colgroup>
           <col style={{ width: 32 }} />
           {columns.map((column) => (
-            <col
-              key={column.id}
-              style={{ width: column.width ?? defaultWidth(column.type) }}
-            />
+            <col key={column.id} style={{ width: widthOf(column) }} />
           ))}
           {editable && <col style={{ width: 40 }} />}
         </colgroup>
@@ -70,7 +100,15 @@ export function TableView({
           <tr>
             <th />
             {columns.map((column) => (
-              <HeaderCell key={column.id} column={column} />
+              <HeaderCell
+                key={column.id}
+                column={column}
+                width={widthOf(column)}
+                onResize={(width) =>
+                  setResize({ columnId: column.id, width: clampWidth(width) })
+                }
+                onResizeEnd={(width) => saveWidth(column, clampWidth(width))}
+              />
             ))}
             {editable && (
               <th>
@@ -110,14 +148,33 @@ export function TableView({
               onDragEnd={() => setDrop(null)}
             />
           ))}
+          {editable && (
+            <tr>
+              <td colSpan={columns.length + 2}>
+                <NewRow type="button" onClick={() => mutator.addRow()}>
+                  <PlusIcon size={18} />
+                  {t("New row")}
+                </NewRow>
+              </td>
+            </tr>
+          )}
         </tbody>
+        {showTotals && (
+          <Footer>
+            <tr>
+              <td />
+              {columns.map((column) => (
+                <TotalCell
+                  key={column.id}
+                  column={column}
+                  values={rows.map((row) => row.cells[column.id])}
+                />
+              ))}
+              {editable && <td />}
+            </tr>
+          </Footer>
+        )}
       </Table>
-      {editable && (
-        <NewRow type="button" onClick={() => mutator.addRow()}>
-          <PlusIcon size={18} />
-          {t("New row")}
-        </NewRow>
-      )}
       {rows.length === 0 && !editable && <Empty>{t("No rows")}</Empty>}
     </Scroll>
   );
@@ -125,9 +182,20 @@ export function TableView({
 
 const COLUMN_DRAG = "text/x-database-column";
 
-function HeaderCell({ column }: { column: Column }) {
+function HeaderCell({
+  column,
+  width,
+  onResize,
+  onResizeEnd,
+}: {
+  column: Column;
+  width: number;
+  onResize: (width: number) => void;
+  onResizeEnd: (width: number) => void;
+}) {
   const { editable, data, mutator } = useDatabase();
   const [open, setOpen] = React.useState(false);
+  const resizing = React.useRef(false);
   const [dropSide, setDropSide] = React.useState<"before" | "after" | null>(
     null
   );
@@ -150,6 +218,10 @@ function HeaderCell({ column }: { column: Column }) {
       draggable
       $drop={dropSide}
       onDragStart={(event) => {
+        if (resizing.current) {
+          event.preventDefault();
+          return;
+        }
         event.dataTransfer.setData(COLUMN_DRAG, column.id);
         event.dataTransfer.effectAllowed = "move";
       }}
@@ -187,7 +259,142 @@ function HeaderCell({ column }: { column: Column }) {
           <ColumnMenu column={column} onClose={() => setOpen(false)} />
         </PopoverContent>
       </Popover>
+      <Resizer
+        aria-hidden
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          resizing.current = true;
+          const handle = event.currentTarget;
+          const startX = event.clientX;
+          let next = width;
+          handle.setPointerCapture(event.pointerId);
+          const move = (e: PointerEvent) => {
+            next = width + e.clientX - startX;
+            onResize(next);
+          };
+          const end = () => {
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", end);
+            handle.removeEventListener("pointercancel", end);
+            resizing.current = false;
+            onResizeEnd(next);
+          };
+          handle.addEventListener("pointermove", move);
+          handle.addEventListener("pointerup", end);
+          handle.addEventListener("pointercancel", end);
+        }}
+      />
     </HeaderTh>
+  );
+}
+
+function useTotalLabels(): Record<TotalKind, string> {
+  const { t } = useTranslation();
+  return {
+    count: t("Count"),
+    not_empty: t("Not empty"),
+    empty: t("Empty"),
+    percent_not_empty: t("Percent not empty"),
+    unique: t("Unique"),
+    sum: t("Sum"),
+    avg: t("Average"),
+    min: t("Min"),
+    max: t("Max"),
+    earliest: t("Earliest"),
+    latest: t("Latest"),
+    checked: t("Checked"),
+    unchecked: t("Unchecked"),
+    percent_checked: t("Percent checked"),
+  };
+}
+
+function formatTotal(kind: TotalKind, value: number | string | undefined) {
+  if (value === undefined) {
+    return "—";
+  }
+  if (kind === "earliest" || kind === "latest") {
+    return formatDate(value);
+  }
+  const text = Number(value).toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+  });
+  return kind === "percent_not_empty" || kind === "percent_checked"
+    ? `${text}%`
+    : text;
+}
+
+/** Total under a column, calculated over the rows shown in the view. */
+function TotalCell({
+  column,
+  values,
+}: {
+  column: Column;
+  values: (CellValue | undefined)[];
+}) {
+  const { t } = useTranslation();
+  const { view, editable } = useDatabase();
+  const updateView = useUpdateView();
+  const labels = useTotalLabels();
+  const [open, setOpen] = React.useState(false);
+  const offered = totalsFor(column.type);
+  const stored = view.totals?.[column.id];
+  // A total that no longer fits the column type (after a type change) is
+  // not shown.
+  const kind = stored && offered.includes(stored) ? stored : undefined;
+  const result = kind && (
+    <>
+      <TotalLabel>{labels[kind]}</TotalLabel>
+      {formatTotal(kind, computeTotal(kind, values))}
+    </>
+  );
+
+  if (!editable) {
+    return (
+      <td>
+        <TotalButton as="div">{result}</TotalButton>
+      </td>
+    );
+  }
+
+  const choose = (next?: TotalKind) => {
+    const totals = { ...view.totals };
+    if (next) {
+      totals[column.id] = next;
+    } else {
+      delete totals[column.id];
+    }
+    updateView({ totals });
+    setOpen(false);
+  };
+
+  return (
+    <td>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger>
+          <TotalButton type="button" $empty={!kind}>
+            {result || t("Calculate")}
+          </TotalButton>
+        </PopoverTrigger>
+        <PopoverContent width={200} shrink align="end" onClick={stop}>
+          <PopoverBody>
+            <MenuRow type="button" $active={!kind} onClick={() => choose()}>
+              {t("None")}
+            </MenuRow>
+            {offered.map((option) => (
+              <MenuRow
+                key={option}
+                type="button"
+                $active={option === kind}
+                onClick={() => choose(option)}
+              >
+                {labels[option]}
+              </MenuRow>
+            ))}
+          </PopoverBody>
+        </PopoverContent>
+      </Popover>
+    </td>
   );
 }
 
@@ -370,6 +577,7 @@ const Table = styled.table`
 
 const HeaderTh = styled.th<{ $drop: "before" | "after" | null }>`
   && {
+    position: relative;
     box-shadow: ${(props) =>
       props.$drop === "before"
         ? `inset 3px 0 0 ${props.theme.accent}`
@@ -377,6 +585,68 @@ const HeaderTh = styled.th<{ $drop: "before" | "after" | null }>`
           ? `inset -3px 0 0 ${props.theme.accent}`
           : "none"};
   }
+`;
+
+// Handle on the right edge of a header that changes the column width.
+const Resizer = styled.div`
+  position: absolute;
+  top: 0;
+  right: -4px;
+  z-index: 1;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+
+  &:hover,
+  &:active {
+    background: linear-gradient(
+      to right,
+      transparent 2px,
+      ${s("accent")} 2px,
+      ${s("accent")} 5px,
+      transparent 5px
+    );
+  }
+`;
+
+const Footer = styled.tfoot`
+  && td {
+    border-bottom: 0;
+  }
+
+  &:hover button {
+    opacity: 1;
+  }
+`;
+
+const TotalButton = styled.button<{ $empty?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: ${s("text")};
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: ${(props) => (props.$empty ? 0 : 1)};
+
+  ${(props) => props.$empty && `color: ${props.theme.textTertiary};`}
+
+  &:focus-visible,
+  &[data-state="open"] {
+    opacity: 1;
+  }
+`;
+
+const TotalLabel = styled.span`
+  color: ${s("textTertiary")};
 `;
 
 const HeaderButton = styled.button`
@@ -466,7 +736,6 @@ const NewRow = styled.button`
   height: 34px;
   padding: 0 8px;
   border: 0;
-  border-bottom: 1px solid ${s("divider")};
   background: none;
   color: ${s("textTertiary")};
   font-size: 14px;

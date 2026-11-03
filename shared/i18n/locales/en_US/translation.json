@@ -2013,5 +2013,19 @@
   "Name_database": "Name",
   "New_database": "New",
   "Drag to move, click for actions": "Drag to move, click for actions",
-  "Remove sorting to reorder rows manually": "Remove sorting to reorder rows manually"
+  "Remove sorting to reorder rows manually": "Remove sorting to reorder rows manually",
+  "Count": "Count",
+  "Not empty": "Not empty",
+  "Percent not empty": "Percent not empty",
+  "Unique": "Unique",
+  "Sum": "Sum",
+  "Average": "Average",
+  "Min": "Min",
+  "Max": "Max",
+  "Earliest": "Earliest",
+  "Latest": "Latest",
+  "Checked": "Checked",
+  "Unchecked": "Unchecked",
+  "Percent checked": "Percent checked",
+  "Calculate": "Calculate"
 }

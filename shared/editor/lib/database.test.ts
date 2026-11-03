@@ -2,6 +2,7 @@ import type { Column, Row, View } from "./database";
 import {
   ColumnType,
   ViewType,
+  computeTotal,
   convertValue,
   daysUntilAnniversary,
   displayValue,
@@ -213,5 +214,55 @@ describe("rowDropIndex", () => {
   it("ignores a drop on itself or an unknown row", () => {
     expect(rowDropIndex(rows, "b", "b", true)).toBe(-1);
     expect(rowDropIndex(rows, "x", "b", true)).toBe(-1);
+  });
+});
+
+describe("computeTotal", () => {
+  it("counts filled, empty and unique values", () => {
+    const values = ["a", "", null, "a", "b", undefined];
+    expect(computeTotal("count", values)).toBe(6);
+    expect(computeTotal("not_empty", values)).toBe(3);
+    expect(computeTotal("empty", values)).toBe(3);
+    expect(computeTotal("percent_not_empty", values)).toBe(50);
+    expect(computeTotal("unique", values)).toBe(2);
+    expect(computeTotal("unique", [["x", "y"], ["y"], []])).toBe(2);
+  });
+
+  it("calculates numbers and skips empty cells", () => {
+    const values = [10, 2.5, null, 7.5];
+    expect(computeTotal("sum", values)).toBe(20);
+    expect(computeTotal("avg", values)).toBeCloseTo(6.667, 3);
+    expect(computeTotal("min", values)).toBe(2.5);
+    expect(computeTotal("max", values)).toBe(10);
+    expect(computeTotal("avg", [null])).toBeUndefined();
+    expect(computeTotal("sum", [])).toBe(0);
+  });
+
+  it("finds the earliest and latest dates", () => {
+    const values = ["2026-05-02", null, "1990-02-05", "2001-12-31"];
+    expect(computeTotal("earliest", values)).toBe("1990-02-05");
+    expect(computeTotal("latest", values)).toBe("2026-05-02");
+    expect(computeTotal("latest", [null])).toBeUndefined();
+  });
+
+  it("counts checkboxes", () => {
+    const values = [true, false, true, null];
+    expect(computeTotal("checked", values)).toBe(2);
+    expect(computeTotal("unchecked", values)).toBe(2);
+    expect(computeTotal("percent_checked", values)).toBe(50);
+    expect(computeTotal("percent_checked", [])).toBeUndefined();
+  });
+
+  it("is kept by normalizeDatabase, unknown kinds are dropped", () => {
+    const data = normalizeDatabase({
+      views: [
+        {
+          id: "v",
+          type: "table",
+          totals: { name: "unique", bd: "nonsense" },
+        },
+      ],
+    });
+    expect(data.views[0].totals).toEqual({ name: "unique" });
   });
 });
