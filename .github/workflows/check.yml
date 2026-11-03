@@ -1,0 +1,32 @@
+name: Check
+
+# Type check and unit tests for every pushed branch.
+on:
+  push:
+    branches: ["**"]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  types:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/install
+      # No tsc build cache persists between runs, so skip writing one.
+      - run: yarn tsc --incremental false
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [shared, app]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/install
+      - run: yarn test:${{ matrix.group }}

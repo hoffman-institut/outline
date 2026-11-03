@@ -2,10 +2,12 @@ name: Image
 
 # Builds the Hoffman Outline image and publishes it to GHCR.
 # Push a tag "v<outline version>-h<N>" (e.g. v1.11.0-h1) to publish
-# ghcr.io/<owner>/outline:1.11.0-h1. Manual runs publish dev-<sha>.
+# ghcr.io/<owner>/outline:1.11.0-h1. Branch and manual runs publish dev-<sha>.
 on:
   push:
     tags: ["v*-h*"]
+    # Feature branches publish dev-<sha> images for the staging server.
+    branches: ["feature/**"]
   workflow_dispatch:
 
 permissions:

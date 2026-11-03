@@ -24,6 +24,8 @@ import CheckboxList from "./CheckboxList";
 import CodeBlock from "./CodeBlock";
 import CodeFence from "./CodeFence";
 import Doc from "./Doc";
+import Database from "./Database";
+import DatabaseRow from "./DatabaseRow";
 import Embed from "./Embed";
 import Emoji from "./Emoji";
 import HardBreak from "./HardBreak";
@@ -127,6 +129,8 @@ export const richExtensions: Nodes = [
   MathBlock,
   Mention,
   ToggleBlock,
+  DatabaseRow,
+  Database,
   // Container type nodes should be last so that key handlers are registered for content inside
   // the container nodes first.
   ...listExtensions,
