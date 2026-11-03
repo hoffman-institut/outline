@@ -285,7 +285,7 @@ const codeBlockStyle = (props: Props) => css`
 
 const diffStyle = (props: Props) => css`
   .${EditorStyleHelper.diffNodeInsertion},
-  .${EditorStyleHelper.diffInsertion}:not([class^="component-"]),
+    .${EditorStyleHelper.diffInsertion}:not([class^="component-"]),
   .${EditorStyleHelper.diffInsertion} > * {
     color: ${props.theme.textDiffInserted};
     background-color: ${props.theme.textDiffInsertedBackground};
@@ -318,12 +318,12 @@ const diffStyle = (props: Props) => css`
   }
 
   td.${EditorStyleHelper.diffNodeInsertion},
-  th.${EditorStyleHelper.diffNodeInsertion} {
+    th.${EditorStyleHelper.diffNodeInsertion} {
     border-color: ${props.theme.textDiffInsertedBackground};
   }
 
   .${EditorStyleHelper.diffNodeDeletion},
-  .${EditorStyleHelper.diffDeletion}:not([class^="component-"]),
+    .${EditorStyleHelper.diffDeletion}:not([class^="component-"]),
   .${EditorStyleHelper.diffDeletion} > * {
     color: ${props.theme.textDiffDeleted};
     background-color: ${props.theme.textDiffDeletedBackground};
@@ -360,12 +360,12 @@ const diffStyle = (props: Props) => css`
   }
 
   td.${EditorStyleHelper.diffNodeDeletion},
-  th.${EditorStyleHelper.diffNodeDeletion} {
+    th.${EditorStyleHelper.diffNodeDeletion} {
     border-color: ${props.theme.textDiffDeletedBackground};
   }
 
   .${EditorStyleHelper.diffNodeModification},
-  .${EditorStyleHelper.diffModification}:not([class^="component-"]),
+    .${EditorStyleHelper.diffModification}:not([class^="component-"]),
   .${EditorStyleHelper.diffModification} > * {
     color: ${props.theme.text};
     background-color: ${transparentize(0.7, "#FFA500")};
@@ -399,7 +399,7 @@ const diffStyle = (props: Props) => css`
   }
 
   td.${EditorStyleHelper.diffNodeModification},
-  th.${EditorStyleHelper.diffNodeModification} {
+    th.${EditorStyleHelper.diffNodeModification} {
     border-color: ${transparentize(0.5, "#FFA500")};
   }
 `;
@@ -1307,6 +1307,33 @@ ${
   border: none !important;
 }
 `
+}
+
+.columns {
+  display: grid;
+  gap: 24px;
+  margin: 0.5em 0;
+}
+
+.column {
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.ProseMirror[contenteditable="true"] .column {
+  outline: 1px dashed ${props.theme.divider};
+  outline-offset: 2px;
+}
+
+.indent {
+  margin-inline-start: 2em;
+}
+
+@media (max-width: 640px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 .${EditorStyleHelper.notice} {

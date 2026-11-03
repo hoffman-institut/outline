@@ -10,6 +10,7 @@ import { parseDomain } from "@shared/utils/domains";
 import { Day, Hour } from "@shared/utils/time";
 import env from "@server/env";
 import { NotFoundError } from "@server/errors";
+import auth from "@server/middlewares/authentication";
 import shareDomains from "@server/middlewares/shareDomains";
 import { Integration } from "@server/models";
 import { getSessionRedirectUrl } from "@server/utils/authentication";
@@ -19,6 +20,7 @@ import apexRedirect from "../middlewares/apexRedirect";
 import { renderApp, renderShare } from "./app";
 import discovery from "./discovery";
 import { renderEmbed } from "./embeds";
+import { renderFileCard } from "./fileCards";
 import errors from "./errors";
 
 const koa = new Koa();
@@ -142,6 +144,7 @@ router.get("/embeds/gitlab", renderEmbed);
 router.get("/embeds/github", renderEmbed);
 router.get("/embeds/dropbox", renderEmbed);
 router.get("/embeds/pinterest", renderEmbed);
+router.get("/embeds/files", auth({ optional: true }), renderFileCard);
 
 router.use(shareDomains());
 

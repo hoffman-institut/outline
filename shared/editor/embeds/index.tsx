@@ -1,4 +1,4 @@
-import { BrowserIcon } from "outline-icons";
+import { BrowserIcon, CloudIcon } from "outline-icons";
 import * as React from "react";
 import styled from "styled-components";
 import type { Primitive } from "utility-types";
@@ -10,6 +10,7 @@ import Image from "../components/Img";
 import Berrycast from "./Berrycast";
 import Diagrams from "./Diagrams";
 import Dropbox from "./Dropbox";
+import FileCard from "./FileCard";
 import Gist from "./Gist";
 import GitLabSnippet from "./GitLabSnippet";
 import InVision from "./InVision";
@@ -730,6 +731,29 @@ const embeds: EmbedDescriptor[] = [
     ],
     icon: <Img src="/images/plantuml.png" alt="PlantUml" />,
     component: PlantUmlDiagrams,
+  }),
+  // Neither may be framed, so the server builds a card from their APIs.
+  new EmbedDescriptor({
+    id: "yandex-disk",
+    title: "Яндекс Диск",
+    keywords: "yandex disk яндекс диск файл папка фото видео",
+    regexMatch: [
+      /^https:\/\/(?:disk\.(?:360\.)?yandex\.(?:ru|com|by|kz|uz|com\.tr)|yadi\.sk)\/[di]\/[\w-]+/,
+    ],
+    icon: <CloudIcon />,
+    hideToolbar: true,
+    component: FileCard,
+  }),
+  new EmbedDescriptor({
+    id: "nextcloud",
+    title: "Nextcloud",
+    keywords: "nextcloud cloud облако некстклауд файл папка",
+    regexMatch: [
+      /^https:\/\/cloud\.hoffman-institut\.ru\/(?:index\.php\/)?s\/[A-Za-z0-9]{6,64}\/?$/,
+    ],
+    icon: <CloudIcon />,
+    hideToolbar: true,
+    component: FileCard,
   }),
   /* The generic iframe embed should always be the last one */
   new EmbedDescriptor({

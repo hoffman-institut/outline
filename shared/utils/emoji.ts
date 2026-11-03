@@ -4,6 +4,7 @@ import { init, Data } from "emoji-mart";
 import FuzzySearch from "fuzzy-search";
 import { capitalize, sortBy } from "es-toolkit/compat";
 import type { Emoji, EmojiVariants } from "../types";
+import { isBrowser } from "./browser";
 import { EmojiCategory, EmojiSkinTone } from "../types";
 
 init({ data: RawData });
@@ -99,10 +100,24 @@ const Emojis = allowFlagEmoji
       )
     );
 
-const searcher = new FuzzySearch(Object.values(Emojis), ["search"], {
+const searcher = new FuzzySearch(Object.values(Emojis), ["search", "ru"], {
   caseSensitive: false,
   sort: true,
 });
+
+// Russian keywords from emojibase, loaded apart from the main bundle.
+if (isBrowser) {
+  void import("./emojiRu.json")
+    .then((module) => {
+      const keywords = module.default as Record<string, string>;
+      for (const [id, words] of Object.entries(keywords)) {
+        if (Emojis[id]) {
+          Object.assign(Emojis[id], { ru: words });
+        }
+      }
+    })
+    .catch(() => undefined);
+}
 
 // Codes defined by unicode.org
 const SKINTONE_CODE_TO_ENUM = {

@@ -3,6 +3,7 @@ import { iconNames } from "@shared/utils/IconNames";
 import { attachmentTools } from "./tools/attachments";
 import { collectionTools } from "./tools/collections";
 import { commentTools } from "./tools/comments";
+import { databaseTools } from "./tools/databases";
 import { documentTools } from "./tools/documents";
 import { fetchTool } from "./tools/fetch";
 import { templateTools } from "./tools/templates";
@@ -87,6 +88,7 @@ export function createMcpServer(
   attachmentTools(server, scopes);
   collectionTools(server, scopes);
   commentTools(server, scopes);
+  databaseTools(server, scopes);
   documentTools(server, scopes);
   fetchTool(server, scopes);
   templateTools(server, scopes);
@@ -103,4 +105,19 @@ Read images and attachments with the "fetch" tool by setting resource to "attach
 
 Base64-encoded images are supported in document content for all formats. When creating a document from HTML that includes images or videos, pass the markup with format "html" — remote URLs and base64 media are imported as attachments automatically. Do not convert such HTML to markdown, and do not upload the HTML file itself as an attachment.
 
-When asked to create a document that follows a template, use the "list_templates" tool to find a matching template; each result already includes the template body as markdown. To use it unchanged, pass its ID as templateId to "create_document" and the new document is pre-filled from it. To adapt it first, modify the returned body and pass the result as the text parameter to "create_document". Either way no separate fetch is needed.`;
+When asked to create a document that follows a template, use the "list_templates" tool to find a matching template; each result already includes the template body as markdown. To use it unchanged, pass its ID as templateId to "create_document" and the new document is pre-filled from it. To adapt it first, modify the returned body and pass the result as the text parameter to "create_document". Either way no separate fetch is needed.
+
+Documents may contain database blocks: fenced \`\`\`hoffman-database blocks with JSON (columns, views, rows). To read or change rows use "list_databases", "query_database", "add_database_row", "update_database_row" and "delete_database_row" instead of editing the JSON: they merge with the edits of people who have the document open and accept column names and option names. When you rewrite a document with "update_document", keep database and linked database (\`\`\`hoffman-database-view) blocks unchanged.
+
+Colored text is written as {color:#E03E3E}text{/color} with a six digit hex color; the toolbar colors are red #E03E3E, orange #D9730D, yellow #B7950B, green #2E9E5B, blue #2F6FDB, purple #8E44AD and gray #8A8F98. A page may be split into two or three columns:
+
+%%%%columns
+%%%column
+Left column, any blocks
+%%%
+%%%column
+Right column
+%%%
+%%%%
+
+Indents made with Tab are not kept in markdown, so rewriting a document removes them.`;

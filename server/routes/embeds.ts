@@ -8,7 +8,7 @@ import { allowScriptSrc, allowStyleSrc } from "@server/middlewares/csp";
  * Resize observer script that sends a message to the parent window when content is resized. Inject
  * this script into the iframe to receive resize events.
  */
-const resizeObserverScript = (
+export const resizeObserverScript = (
   ctx: Context
 ) => `<script nonce="${ctx.state.cspNonce}">
   const resizeObserver = new ResizeObserver((entries) => {
@@ -23,7 +23,7 @@ const resizeObserverScript = (
  * Script that checks if the iframe is being loaded in an iframe. If it is not, it redirects to the
  * origin URL.
  */
-const iframeCheckScript = (
+export const iframeCheckScript = (
   ctx: Context
 ) => `<script nonce="${ctx.state.cspNonce}">
   if (window.self === window.top) {

@@ -25,6 +25,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import CellBackgroundColorPicker from "../components/CellBackgroundColorPicker";
 import HighlightColorPicker from "../components/HighlightColorPicker";
+import TextColorPicker from "../components/TextColorPicker";
 
 import { getDocumentHighlightColors } from "@shared/editor/queries/getDocumentHighlightColors";
 import { getMarksBetween } from "@shared/editor/queries/getMarksBetween";
@@ -51,6 +52,8 @@ import {
 import type { CellSelection } from "prosemirror-tables";
 import TableCell from "@shared/editor/nodes/TableCell";
 import Highlight from "@shared/editor/marks/Highlight";
+import { textColors } from "@shared/editor/marks/TextColor";
+import TextColorIcon from "~/components/Icons/TextColorIcon";
 import { DottedCircleIcon } from "~/components/Icons/DottedCircleIcon";
 
 /**
@@ -80,6 +83,14 @@ export default function formattingMenuItems(ctx: SelectionContext): MenuItem[] {
       )
     : getMarksBetween(state.selection.from, state.selection.to, state).find(
         ({ mark }) => mark.type === schema.marks.highlight
+      )?.mark;
+
+  const textColor = isEmpty
+    ? (state.storedMarks || state.selection.$from.marks()).find(
+        (mark) => mark.type === schema.marks.text_color
+      )
+    : getMarksBetween(state.selection.from, state.selection.to, state).find(
+        ({ mark }) => mark.type === schema.marks.text_color
       )?.mark;
 
   const cellSelectionHasBackground = isTableCell
@@ -211,6 +222,32 @@ export default function formattingMenuItems(ctx: SelectionContext): MenuItem[] {
       visible:
         (isTouch || isMobile) &&
         isInList(state, { types: ["ordered_list", "bullet_list"] }),
+    },
+    {
+      name: "outdent",
+      group: MenuItemGroup.block,
+      tooltip: t("Outdent"),
+      shortcut: `⇧+Tab`,
+      icon: <OutdentIcon />,
+      visible:
+        (isTouch || isMobile) &&
+        !isInList(state) &&
+        !isInCode &&
+        !isTableCell &&
+        isNodeActive(schema.nodes.indent)(state),
+    },
+    {
+      name: "indent",
+      group: MenuItemGroup.block,
+      tooltip: t("Indent"),
+      shortcut: `Tab`,
+      icon: <IndentIcon />,
+      visible:
+        (isTouch || isMobile) &&
+        !!schema.nodes.indent &&
+        !isInList(state) &&
+        !isInCode &&
+        !isTableCell,
     },
     {
       name: "outdentCheckboxList",
@@ -452,6 +489,50 @@ export default function formattingMenuItems(ctx: SelectionContext): MenuItem[] {
           },
         ];
       },
+    },
+    {
+      group: MenuItemGroup.inline,
+      tooltip: t("Text color"),
+      icon: <TextColorIcon color={textColor?.attrs.color} />,
+      active: () => !!textColor,
+      visible: !isInCode && !isTableCell && !!schema.marks.text_color,
+      children: (): MenuItem[] => [
+        ...(textColor
+          ? [
+              {
+                name: "text_color",
+                label: t("None"),
+                icon: <DottedCircleIcon retainColor color="transparent" />,
+                active: () => false,
+                attrs: { color: textColor.attrs.color },
+              },
+            ]
+          : []),
+        ...textColors.map((preset) => ({
+          name: "text_color",
+          label: t(preset.name),
+          icon: <CircleIcon retainColor color={preset.hex} />,
+          active: isMarkActive(schema.marks.text_color, { color: preset.hex }),
+          attrs: { color: preset.hex },
+        })),
+        {
+          icon: <CircleIcon retainColor color="rainbow" />,
+          label: t("Custom color"),
+          children: [
+            {
+              content: (
+                <TextColorPicker
+                  activeColor={textColor?.attrs.color || textColors[0].hex}
+                />
+              ),
+              preventCloseCondition: () =>
+                !!document.activeElement?.matches(
+                  ".ProseMirror.ProseMirror-focused"
+                ),
+            },
+          ],
+        },
+      ],
     },
     {
       name: "code_inline",

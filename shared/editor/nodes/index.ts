@@ -27,12 +27,15 @@ import Doc from "./Doc";
 import Database from "./Database";
 import DatabaseRow from "./DatabaseRow";
 import DatabaseViewNode from "./DatabaseViewNode";
+import Columns, { Column } from "./Columns";
+import TextColor from "../marks/TextColor";
 import Embed from "./Embed";
 import Emoji from "./Emoji";
 import HardBreak from "./HardBreak";
 import Heading from "./Heading";
 import HorizontalRule from "./HorizontalRule";
 import Image from "./Image";
+import Indent from "./Indent";
 import ListItem from "./ListItem";
 import Math from "./Math";
 import MathBlock from "./MathBlock";
@@ -125,6 +128,7 @@ export const richExtensions: Nodes = [
   HeadingPrefix,
   HorizontalRule,
   Highlight,
+  TextColor,
   TemplatePlaceholder,
   Math,
   MathBlock,
@@ -137,6 +141,10 @@ export const richExtensions: Nodes = [
   // the container nodes first.
   ...listExtensions,
   ...tableExtensions,
+  Column,
+  Columns,
+  // After all others, so it gets Tab only when no other block wants it.
+  Indent,
 ];
 
 /**

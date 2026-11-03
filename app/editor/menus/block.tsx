@@ -23,6 +23,7 @@ import {
   DoneIcon,
   EmbedIcon,
   CollapseIcon,
+  TableColumnsDistributeIcon,
 } from "outline-icons";
 import * as React from "react";
 import styled from "styled-components";
@@ -173,6 +174,20 @@ export default function blockMenuItems(
       icon: <DatabaseIcon />,
       keywords:
         "linked database view связанная база представление копия база данных",
+    },
+    {
+      name: "columns",
+      title: t("Two columns"),
+      icon: <TableColumnsDistributeIcon />,
+      keywords: "columns layout колонки столбцы две",
+      attrs: { count: 2 },
+    },
+    {
+      name: "columns",
+      title: t("Three columns"),
+      icon: <TableColumnsDistributeIcon />,
+      keywords: "columns layout колонки столбцы три",
+      attrs: { count: 3 },
     },
     {
       name: "blockquote",
