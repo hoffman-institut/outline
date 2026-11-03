@@ -2258,5 +2258,16 @@
   "Percent": "Проценты, %",
   "Number format": "Формат числа",
   "Show as a bar, maximum": "Полосой, максимум",
-  "Prefix": "Префикс"
+  "Prefix": "Префикс",
+  "Show rows that match": "Показывать строки, где выполняются",
+  "all conditions": "все условия",
+  "any condition": "любое из условий",
+  "Add condition": "Добавить условие",
+  "Add filter group": "Добавить группу условий",
+  "No grouping": "Без группировки",
+  "By day": "По дням",
+  "By week": "По неделям",
+  "By month": "По месяцам",
+  "By year": "По годам",
+  "Week of {{ date }}": "Неделя с {{ date }}"
 }

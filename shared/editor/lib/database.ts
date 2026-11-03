@@ -145,16 +145,41 @@ export type FilterRule = {
   value?: string | number;
 };
 
+export type FilterMode = "and" | "or";
+
+/** Rules joined by their own "and" / "or", inside the filters of a view. */
+export type FilterGroup = {
+  id: string;
+  mode: FilterMode;
+  rules: FilterRule[];
+};
+
+export type FilterItem = FilterRule | FilterGroup;
+
+export const isFilterGroup = (item: FilterItem): item is FilterGroup =>
+  Array.isArray((item as FilterGroup).rules);
+
+/** How rows are grouped by a date column. */
+export type DateUnit = "day" | "week" | "month" | "year";
+
 export type View = {
   id: string;
   name: string;
   type: ViewType;
   sort: SortRule[];
-  filters: FilterRule[];
+  /** Filter rules and groups of rules. */
+  filters: FilterItem[];
+  /** How the filters are joined; "and" when missing. */
+  filterMode?: FilterMode;
   /** Columns hidden in this view. */
   hidden: string[];
-  /** Board view: the select column whose options become board columns. */
+  /**
+   * Board view: the select column whose options become board columns.
+   * Table view: the column whose values group the rows.
+   */
   groupBy?: string;
+  /** Table grouped by a date: the period of a group. */
+  groupDate?: DateUnit;
   /** Calendar view: the date column that places rows on days. */
   dateColumn?: string;
   /** Calendar view: repeat dates every year (birthdays, anniversaries). */
@@ -777,10 +802,18 @@ function matchesRelativeDate(
  */
 export function cellsForFilters(
   columns: Column[],
-  filters: FilterRule[]
+  filters: FilterItem[],
+  mode: FilterMode = "and"
 ): Record<string, CellValue> {
   const cells: Record<string, CellValue> = {};
+  if (mode === "or") {
+    // Any one rule is enough, so a new row needs none of them.
+    return cells;
+  }
   for (const filter of filters) {
+    if (isFilterGroup(filter)) {
+      continue;
+    }
     const column = columns.find((c) => c.id === filter.columnId);
     const value = filter.value;
     if (!column) {
@@ -868,13 +901,30 @@ export function rowsForView<R extends Row>(
     return data.rows;
   }
   const byId = new Map(data.columns.map((c) => [c.id, c]));
+  const matches = (row: R, filter: FilterRule) => {
+    const column = byId.get(filter.columnId);
+    return column
+      ? matchesFilter(column, row.cells[column.id], filter, today)
+      : true;
+  };
+  const join = (mode: FilterMode | undefined, results: boolean[]) =>
+    results.length === 0
+      ? true
+      : mode === "or"
+        ? results.some(Boolean)
+        : results.every(Boolean);
   const filtered = data.rows.filter((row) =>
-    view.filters.every((filter) => {
-      const column = byId.get(filter.columnId);
-      return column
-        ? matchesFilter(column, row.cells[column.id], filter, today)
-        : true;
-    })
+    join(
+      view.filterMode,
+      view.filters.map((item) =>
+        isFilterGroup(item)
+          ? join(
+              item.mode,
+              item.rules.map((rule) => matches(row, rule))
+            )
+          : matches(row, item)
+      )
+    )
   );
   const rules = view.sort.filter((rule) => byId.has(rule.columnId));
   if (!rules.length) {
@@ -914,6 +964,142 @@ export function rowsForView<R extends Row>(
     })
     .map(({ row }) => row);
 }
+
+/** A group of rows of a grouped table. */
+export type RowGroup<R> = {
+  /** Option id, date period, value text; "" for rows without a value. */
+  key: string;
+  label: string;
+  rows: R[];
+};
+
+/** Start of the period of a date, as "YYYY-MM-DD". */
+function periodOf(value: string, unit: DateUnit): string {
+  switch (unit) {
+    case "year":
+      return `${value.slice(0, 4)}-01-01`;
+    case "month":
+      return `${value.slice(0, 7)}-01`;
+    case "week": {
+      const monday = weekStart(dayNumber(value));
+      return new Date(monday * 86400000).toISOString().slice(0, 10);
+    }
+    default:
+      return value.slice(0, 10);
+  }
+}
+
+/**
+ * Groups rows by the values of a column. A row with several values (tags,
+ * people, linked rows) is shown in the group of each value. Rows without a
+ * value come last.
+ *
+ * @param column the grouping column (calculated columns have their values
+ * in the rows).
+ * @param rows rows in the order of the view.
+ * @param options date period and user names.
+ * @returns the groups in a natural order.
+ */
+export function groupRows<R extends Row>(
+  column: Column,
+  rows: R[],
+  options: {
+    dateUnit?: DateUnit;
+    userName?: (id: string) => string | undefined;
+  } = {}
+): RowGroup<R>[] {
+  const groups = new Map<string, RowGroup<R>>();
+  const add = (key: string, label: string, row: R) => {
+    const group = groups.get(key) ?? { key, label, rows: [] };
+    if (!group.rows.includes(row)) {
+      group.rows.push(row);
+    }
+    groups.set(key, group);
+  };
+  for (const row of rows) {
+    const value = row.cells[column.id];
+    const links = (row as { links?: Record<string, LinkTitle[]> }).links?.[
+      column.id
+    ];
+    if (links) {
+      links.forEach((link) => add(link.id, link.title, row));
+      if (!links.length) {
+        add("", "", row);
+      }
+      continue;
+    }
+    if (column.type === ColumnType.Checkbox) {
+      add(value ? "true" : "false", value ? "✓" : "", row);
+      continue;
+    }
+    if (isEmptyValue(value)) {
+      add("", "", row);
+      continue;
+    }
+    switch (column.type) {
+      case ColumnType.Select:
+      case ColumnType.MultiSelect:
+        (Array.isArray(value) ? value : [String(value)]).forEach((id) => {
+          const option = column.options?.find((o) => o.id === id);
+          if (option) {
+            add(id, option.name, row);
+          }
+        });
+        break;
+      case ColumnType.Person:
+        (Array.isArray(value) ? value : []).forEach((id) =>
+          add(id, options.userName?.(id) ?? id, row)
+        );
+        break;
+      case ColumnType.Date: {
+        const period = periodOf(String(value), options.dateUnit ?? "month");
+        add(period, formatDate(period), row);
+        break;
+      }
+      default: {
+        const text = displayValue(column, value, options.userName);
+        add(text, text, row);
+      }
+    }
+  }
+  const order = (group: RowGroup<R>) => {
+    if (
+      column.type === ColumnType.Select ||
+      column.type === ColumnType.MultiSelect
+    ) {
+      return column.options?.findIndex((o) => o.id === group.key) ?? 0;
+    }
+    return 0;
+  };
+  return [...groups.values()].sort((a, b) => {
+    if (!a.key || !b.key) {
+      return a.key ? -1 : b.key ? 1 : 0;
+    }
+    if (column.type === ColumnType.Checkbox) {
+      return a.key === "true" ? -1 : 1;
+    }
+    if (
+      column.type === ColumnType.Select ||
+      column.type === ColumnType.MultiSelect
+    ) {
+      return order(a) - order(b);
+    }
+    if (
+      column.type === ColumnType.Number ||
+      column.type === ColumnType.AutoNumber
+    ) {
+      return (
+        Number(a.rows[0].cells[column.id]) - Number(b.rows[0].cells[column.id])
+      );
+    }
+    if (column.type === ColumnType.Date) {
+      return a.key.localeCompare(b.key);
+    }
+    return a.label.localeCompare(b.label, "ru", { numeric: true });
+  });
+}
+
+type LinkTitle = { id: string; title: string };
 
 /** Filter operators offered for a column type. */
 export function operatorsFor(type: ColumnType): FilterOperator[] {
@@ -1143,6 +1329,10 @@ export function normalizeDatabase(input: unknown): DatabaseData {
             : ViewType.Table,
           sort: Array.isArray(v.sort) ? v.sort : [],
           filters: Array.isArray(v.filters) ? v.filters : [],
+          ...(v.filterMode === "or" ? { filterMode: "or" as const } : {}),
+          ...(["day", "week", "month", "year"].includes(v.groupDate as string)
+            ? { groupDate: v.groupDate }
+            : {}),
           hidden: Array.isArray(v.hidden) ? v.hidden : [],
           ...(v.groupBy ? { groupBy: v.groupBy } : {}),
           ...(v.dateColumn ? { dateColumn: v.dateColumn } : {}),

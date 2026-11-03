@@ -142,7 +142,14 @@ function DatabaseBlock({
 
   const addRow = (cells: Record<string, CellValue> = {}) =>
     mutator.addRow(
-      { ...cellsForFilters(data.columns, activeView.filters), ...cells },
+      {
+        ...cellsForFilters(
+          data.columns,
+          activeView.filters,
+          activeView.filterMode
+        ),
+        ...cells,
+      },
       activeView.newRowsFirst ? data.rows[0]?.id : undefined
     );
 

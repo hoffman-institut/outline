@@ -16,6 +16,8 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type {
+  FilterItem,
+  FilterMode,
   FilterOperator,
   FilterRule,
   SortRule,
@@ -25,6 +27,7 @@ import {
   ColumnType,
   ViewType,
   createView,
+  isFilterGroup,
   newId,
   operatorsFor,
 } from "@shared/editor/lib/database";
@@ -503,107 +506,203 @@ const FilterValue = observer(function FilterValue({
   );
 });
 
+/** One filter rule: column, condition, value. */
+function FilterRuleRow({
+  rule,
+  onChange,
+  onRemove,
+}: {
+  rule: FilterRule;
+  onChange: (rule: FilterRule) => void;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation();
+  const { computed } = useDatabase();
+  const labels = useOperatorLabels();
+  const column = computed.columns.find((c) => c.id === rule.columnId);
+  return (
+    <RuleRow>
+      <Select
+        value={rule.columnId}
+        onChange={(event) => {
+          const next = computed.columns.find(
+            (c) => c.id === event.target.value
+          );
+          if (next) {
+            onChange({
+              columnId: next.id,
+              operator: operatorsFor(next.type)[0],
+              value: "",
+            });
+          }
+        }}
+      >
+        {computed.columns.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </Select>
+      <Select
+        value={rule.operator}
+        onChange={(event) =>
+          onChange({ ...rule, operator: event.target.value as FilterOperator })
+        }
+      >
+        {operatorsFor(column?.type ?? ColumnType.Text).map((op) => (
+          <option key={op} value={op}>
+            {labels[op]}
+          </option>
+        ))}
+      </Select>
+      <FilterValue
+        rule={rule}
+        onChange={(value) => onChange({ ...rule, value })}
+      />
+      <IconButton type="button" aria-label={t("Remove")} onClick={onRemove}>
+        <CloseIcon size={18} />
+      </IconButton>
+    </RuleRow>
+  );
+}
+
+/** "All conditions" / "any condition" switch of a list of filters. */
+function ModeSelect({
+  mode,
+  onChange,
+}: {
+  mode: FilterMode;
+  onChange: (mode: FilterMode) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <ModeRow>
+      {t("Show rows that match")}
+      <Select
+        value={mode}
+        onChange={(event) => onChange(event.target.value as FilterMode)}
+      >
+        <option value="and">{t("all conditions")}</option>
+        <option value="or">{t("any condition")}</option>
+      </Select>
+    </ModeRow>
+  );
+}
+
 function FilterButton() {
   const { t } = useTranslation();
   const { computed, view, editable } = useDatabase();
   const updateView = useUpdateView();
-  const labels = useOperatorLabels();
+  const count = view.filters.reduce(
+    (sum, item) => sum + (isFilterGroup(item) ? item.rules.length : 1),
+    0
+  );
 
-  const setRule = (index: number, patch: Partial<FilterRule>) =>
+  const newRule = (): FilterRule => ({
+    columnId: computed.columns[0].id,
+    operator: operatorsFor(computed.columns[0].type)[0],
+    value: "",
+  });
+  const setItem = (index: number, item: FilterItem | null) =>
     updateView({
-      filters: view.filters.map((rule, i) =>
-        i === index ? { ...rule, ...patch } : rule
-      ),
+      filters: item
+        ? view.filters.map((current, i) => (i === index ? item : current))
+        : view.filters.filter((_, i) => i !== index),
     });
 
   return (
     <Popover>
       <PopoverTrigger>
-        <SmallButton type="button" $highlight={view.filters.length > 0}>
+        <SmallButton type="button" $highlight={count > 0}>
           <SearchIcon size={18} />
           {t("Filter")}
-          {view.filters.length > 0 && ` · ${view.filters.length}`}
+          {count > 0 && ` · ${count}`}
         </SmallButton>
       </PopoverTrigger>
-      <PopoverContent width={520} shrink align="end" onClick={stop}>
+      <PopoverContent width={580} shrink align="end" onClick={stop}>
         <PopoverBody>
           {!editable && <Hint>{t("Only you see these changes")}</Hint>}
           {view.filters.length === 0 && <Hint>{t("All rows are shown")}</Hint>}
-          {view.filters.map((rule, index) => {
-            const column = computed.columns.find((c) => c.id === rule.columnId);
-            return (
-              <RuleRow key={`${rule.columnId}-${index}`}>
-                <Select
-                  value={rule.columnId}
-                  onChange={(event) => {
-                    const next = computed.columns.find(
-                      (c) => c.id === event.target.value
-                    );
-                    if (next) {
-                      setRule(index, {
-                        columnId: next.id,
-                        operator: operatorsFor(next.type)[0],
-                        value: "",
-                      });
+          {view.filters.length > 1 && (
+            <ModeSelect
+              mode={view.filterMode ?? "and"}
+              onChange={(filterMode) => updateView({ filterMode })}
+            />
+          )}
+          {view.filters.map((item, index) =>
+            isFilterGroup(item) ? (
+              <GroupBox key={item.id}>
+                {item.rules.length > 1 && (
+                  <ModeSelect
+                    mode={item.mode}
+                    onChange={(mode) => setItem(index, { ...item, mode })}
+                  />
+                )}
+                {item.rules.map((rule, ruleIndex) => (
+                  <FilterRuleRow
+                    key={ruleIndex}
+                    rule={rule}
+                    onChange={(next) =>
+                      setItem(index, {
+                        ...item,
+                        rules: item.rules.map((r, i) =>
+                          i === ruleIndex ? next : r
+                        ),
+                      })
                     }
-                  }}
-                >
-                  {computed.columns.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  value={rule.operator}
-                  onChange={(event) =>
-                    setRule(index, {
-                      operator: event.target.value as FilterOperator,
-                    })
-                  }
-                >
-                  {operatorsFor(column?.type ?? ColumnType.Text).map((op) => (
-                    <option key={op} value={op}>
-                      {labels[op]}
-                    </option>
-                  ))}
-                </Select>
-                <FilterValue
-                  rule={rule}
-                  onChange={(value) => setRule(index, { value })}
-                />
-                <IconButton
+                    onRemove={() => {
+                      const rules = item.rules.filter(
+                        (_, i) => i !== ruleIndex
+                      );
+                      setItem(index, rules.length ? { ...item, rules } : null);
+                    }}
+                  />
+                ))}
+                <MenuRow
                   type="button"
-                  aria-label={t("Remove")}
                   onClick={() =>
-                    updateView({
-                      filters: view.filters.filter((_, i) => i !== index),
+                    setItem(index, {
+                      ...item,
+                      rules: [...item.rules, newRule()],
                     })
                   }
                 >
-                  <CloseIcon size={18} />
-                </IconButton>
-              </RuleRow>
-            );
-          })}
+                  + {t("Add condition")}
+                </MenuRow>
+              </GroupBox>
+            ) : (
+              <FilterRuleRow
+                key={index}
+                rule={item}
+                onChange={(next) => setItem(index, next)}
+                onRemove={() => setItem(index, null)}
+              />
+            )
+          )}
           {computed.columns.length > 0 && (
-            <MenuRow
-              type="button"
-              onClick={() =>
-                updateView({
-                  filters: [
-                    ...view.filters,
-                    {
-                      columnId: computed.columns[0].id,
-                      operator: operatorsFor(computed.columns[0].type)[0],
-                      value: "",
-                    },
-                  ],
-                })
-              }
-            >
-              + {t("Add filter")}
-            </MenuRow>
+            <>
+              <MenuRow
+                type="button"
+                onClick={() =>
+                  updateView({ filters: [...view.filters, newRule()] })
+                }
+              >
+                + {t("Add filter")}
+              </MenuRow>
+              <MenuRow
+                type="button"
+                onClick={() =>
+                  updateView({
+                    filters: [
+                      ...view.filters,
+                      { id: newId(), mode: "or", rules: [newRule()] },
+                    ],
+                  })
+                }
+              >
+                + {t("Add filter group")}
+              </MenuRow>
+            </>
           )}
         </PopoverBody>
       </PopoverContent>
@@ -613,8 +712,15 @@ function FilterButton() {
 
 function FieldsButton() {
   const { t } = useTranslation();
-  const { data, view, editable } = useDatabase();
+  const {
+    data,
+    computed,
+    view,
+    editable,
+    updateView: saveView,
+  } = useDatabase();
   const updateView = useUpdateView();
+  const groupColumn = computed.columns.find((c) => c.id === view.groupBy);
   const selectColumns = data.columns.filter(
     (c) => c.type === ColumnType.Select
   );
@@ -651,6 +757,46 @@ function FieldsButton() {
                 </Select>
               ) : (
                 <Hint>{t("Add a select column to group cards")}</Hint>
+              )}
+              <MenuDivider />
+            </>
+          )}
+          {view.type === ViewType.Table && (
+            <>
+              <MenuLabel>{t("Group by")}</MenuLabel>
+              <Select
+                value={groupColumn ? groupColumn.id : ""}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    updateView({ groupBy: event.target.value });
+                  } else {
+                    // Attributes are synced as JSON: drop the keys.
+                    const { groupBy: _g, groupDate: _d, ...rest } = view;
+                    saveView(rest);
+                  }
+                }}
+              >
+                <option value="">{t("No grouping")}</option>
+                {computed.columns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              {groupColumn?.type === ColumnType.Date && (
+                <Select
+                  value={view.groupDate ?? "month"}
+                  onChange={(event) =>
+                    updateView({
+                      groupDate: event.target.value as View["groupDate"],
+                    })
+                  }
+                >
+                  <option value="day">{t("By day")}</option>
+                  <option value="week">{t("By week")}</option>
+                  <option value="month">{t("By month")}</option>
+                  <option value="year">{t("By year")}</option>
+                </Select>
               )}
               <MenuDivider />
             </>
@@ -866,6 +1012,26 @@ const RuleRow = styled.div`
     flex: 1;
     min-width: 0;
   }
+`;
+
+const ModeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 6px;
+  color: ${s("textSecondary")};
+  font-size: 13px;
+
+  ${Select} {
+    width: auto;
+  }
+`;
+
+const GroupBox = styled.div`
+  margin: 4px 0;
+  padding: 6px 8px;
+  border: 1px solid ${s("divider")};
+  border-radius: 6px;
 `;
 
 const IconButton = styled.button`

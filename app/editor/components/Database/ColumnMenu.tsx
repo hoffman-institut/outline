@@ -39,6 +39,7 @@ import {
   moveColumn,
   newId,
   nextOptionColor,
+  isFilterGroup,
   numberFormats,
   optionNamesFor,
 } from "@shared/editor/lib/database";
@@ -299,7 +300,20 @@ export function ColumnMenu({
       mutator.setView({
         ...rest,
         sort: v.sort.filter((rule) => rule.columnId !== column.id),
-        filters: v.filters.filter((rule) => rule.columnId !== column.id),
+        filters: v.filters
+          .map((item) =>
+            isFilterGroup(item)
+              ? {
+                  ...item,
+                  rules: item.rules.filter((r) => r.columnId !== column.id),
+                }
+              : item
+          )
+          .filter((item) =>
+            isFilterGroup(item)
+              ? item.rules.length > 0
+              : item.columnId !== column.id
+          ),
         hidden: v.hidden.filter((id) => id !== column.id),
         ...(groupBy && groupBy !== column.id ? { groupBy } : {}),
         ...(dateColumn && dateColumn !== column.id ? { dateColumn } : {}),

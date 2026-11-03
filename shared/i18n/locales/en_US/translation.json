@@ -2066,5 +2066,16 @@
   "Percent": "Percent",
   "Number format": "Number format",
   "Show as a bar, maximum": "Show as a bar, maximum",
-  "Prefix": "Prefix"
+  "Prefix": "Prefix",
+  "Show rows that match": "Show rows that match",
+  "all conditions": "all conditions",
+  "any condition": "any condition",
+  "Add condition": "Add condition",
+  "Add filter group": "Add filter group",
+  "No grouping": "No grouping",
+  "By day": "By day",
+  "By week": "By week",
+  "By month": "By month",
+  "By year": "By year",
+  "Week of {{ date }}": "Week of {{ date }}"
 }

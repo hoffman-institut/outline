@@ -6,6 +6,7 @@ import {
   computeTotal,
   convertValue,
   formatNumber,
+  groupRows,
   nextAutoNumber,
   daysUntilAnniversary,
   displayValue,
@@ -443,5 +444,137 @@ describe("new rows", () => {
     expect(data.columns[2].numberFormat).toBeUndefined();
     expect(data.views[0].newRowsFirst).toBe(true);
     expect(displayValue(data.columns[1], 12)).toBe("TASK-12");
+  });
+});
+
+describe("filter modes and groups", () => {
+  const rows: Row[] = [
+    { id: "a", cells: { st: "todo", tags: ["vip"] } },
+    { id: "b", cells: { st: "done", tags: [] } },
+    { id: "c", cells: { st: "done", tags: ["vip"] } },
+  ];
+  const view = (patch: Partial<View>): View => ({
+    id: "v",
+    name: "V",
+    type: ViewType.Table,
+    sort: [],
+    filters: [],
+    hidden: [],
+    ...patch,
+  });
+  const todo = { columnId: "st", operator: "is" as const, value: "todo" };
+  const vip = { columnId: "tags", operator: "contains" as const, value: "vip" };
+  const ids = (v: View) =>
+    rowsForView({ columns: [status, tags], rows }, v).map((r) => r.id);
+
+  it("joins rules with and / or", () => {
+    expect(ids(view({ filters: [todo, vip] }))).toEqual(["a"]);
+    expect(ids(view({ filters: [todo, vip], filterMode: "or" }))).toEqual([
+      "a",
+      "c",
+    ]);
+  });
+
+  it("evaluates groups of rules", () => {
+    const done = { columnId: "st", operator: "is" as const, value: "done" };
+    const noTags = { columnId: "tags", operator: "is_empty" as const };
+    expect(
+      ids(
+        view({
+          filters: [{ id: "g", mode: "or", rules: [todo, noTags] }, done],
+          filterMode: "or",
+        })
+      )
+    ).toEqual(["a", "b", "c"]);
+    expect(
+      ids(
+        view({
+          filters: [done, { id: "g", mode: "or", rules: [todo, noTags] }],
+        })
+      )
+    ).toEqual(["b"]);
+  });
+
+  it("does not prefill new rows of an or-view", () => {
+    expect(cellsForFilters([status], [todo], "or")).toEqual({});
+  });
+});
+
+describe("groupRows", () => {
+  const labels: Column = {
+    id: "tags",
+    name: "Labels",
+    type: ColumnType.MultiSelect,
+    options: [
+      { id: "vip", name: "VIP", color: "red" },
+      { id: "new", name: "New", color: "green" },
+    ],
+  };
+
+  it("groups by option order, repeats multi-values, keeps empty last", () => {
+    const rows: Row[] = [
+      { id: "a", cells: { st: "done", tags: ["vip", "new"] } },
+      { id: "b", cells: { st: "todo", tags: [] } },
+      { id: "c", cells: { tags: ["new"] } },
+    ];
+    expect(
+      groupRows(status, rows).map((g) => [g.key, g.rows.map((r) => r.id)])
+    ).toEqual([
+      ["todo", ["b"]],
+      ["done", ["a"]],
+      ["", ["c"]],
+    ]);
+    const byTag = groupRows(labels, rows);
+    expect(byTag.map((g) => [g.label, g.rows.map((r) => r.id)])).toEqual([
+      ["VIP", ["a"]],
+      ["New", ["a", "c"]],
+      ["", ["b"]],
+    ]);
+  });
+
+  it("groups dates by month and by week", () => {
+    const rows: Row[] = [
+      { id: "a", cells: { bd: "2026-11-04" } },
+      { id: "b", cells: { bd: "2026-10-30" } },
+      { id: "c", cells: { bd: "2026-11-01" } },
+    ];
+    expect(
+      groupRows(birthday, rows).map((g) => [g.key, g.rows.map((r) => r.id)])
+    ).toEqual([
+      ["2026-10-01", ["b"]],
+      ["2026-11-01", ["a", "c"]],
+    ]);
+    // 2026-11-01 is a Sunday: same week as 2026-10-30 (Friday).
+    expect(
+      groupRows(birthday, rows, { dateUnit: "week" }).map((g) => [
+        g.key,
+        g.rows.map((r) => r.id),
+      ])
+    ).toEqual([
+      ["2026-10-26", ["b", "c"]],
+      ["2026-11-02", ["a"]],
+    ]);
+  });
+
+  it("groups relations by linked rows", () => {
+    const relation: Column = {
+      id: "rel",
+      name: "R",
+      type: ColumnType.Relation,
+    };
+    const rows = [
+      {
+        id: "a",
+        cells: { rel: ["x"] },
+        links: { rel: [{ id: "x", title: "Яна" }] },
+      },
+      { id: "b", cells: { rel: [] }, links: { rel: [] } },
+    ];
+    expect(
+      groupRows(relation, rows).map((g) => [g.label, g.rows.map((r) => r.id)])
+    ).toEqual([
+      ["Яна", ["a"]],
+      ["", ["b"]],
+    ]);
   });
 });

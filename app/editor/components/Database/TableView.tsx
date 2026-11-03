@@ -3,12 +3,14 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { CellValue, Column, TotalKind } from "@shared/editor/lib/database";
+import type { RowGroup } from "@shared/editor/lib/database";
 import {
   ColumnType,
   computeTotal,
   displayValue,
   formatDate,
   formatNumber,
+  groupRows,
   moveColumn,
   newId,
   rowDropIndex,
@@ -29,6 +31,7 @@ import { Cell } from "./Cell";
 import { ColumnMenu, ColumnTypeIcon } from "./ColumnMenu";
 import {
   CellError,
+  Chip,
   MenuRow,
   PopoverBody,
   stop,
@@ -60,8 +63,22 @@ export function TableView({
   const { data, computed, view, editable, mutator, addRow, userName } =
     useDatabase();
   const columns = computed.columns.filter((c) => !view.hidden.includes(c.id));
-  // Manual order only makes sense when the view is not sorted.
-  const reorderable = editable && view.sort.length === 0;
+  const groupColumn = computed.columns.find((c) => c.id === view.groupBy);
+  const groups = groupColumn
+    ? groupRows(groupColumn, rows, { dateUnit: view.groupDate, userName })
+    : undefined;
+  // Collapsed groups are remembered until the page is reloaded.
+  const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) {
+        next.add(key);
+      }
+      return next;
+    });
+  // Manual order only makes sense when the view is not sorted or grouped.
+  const reorderable = editable && view.sort.length === 0 && !groupColumn;
   const [drop, setDrop] = React.useState<{
     rowId: string;
     after: boolean;
@@ -164,25 +181,58 @@ export function TableView({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <TableRow
-              key={row.id}
-              row={row}
-              columns={columns}
-              autoFocus={row.id === focusRowId}
-              reorderable={reorderable}
-              drop={
-                drop?.rowId === row.id
-                  ? drop.after
-                    ? "after"
-                    : "before"
-                  : null
-              }
-              onDragOverRow={(after) => setDrop({ rowId: row.id, after })}
-              onDropRow={(rowId, after) => dropRow(rowId, row.id, after)}
-              onDragEnd={() => setDrop(null)}
-            />
+          {groups?.map((group) => (
+            <React.Fragment key={group.key}>
+              <tr>
+                <GroupCell colSpan={columns.length + 2}>
+                  <GroupHeader
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    {collapsed.has(group.key) ? "▸" : "▾"}
+                    <GroupLabel column={groupColumn!} group={group} />
+                    <GroupCount>{group.rows.length}</GroupCount>
+                  </GroupHeader>
+                </GroupCell>
+              </tr>
+              {!collapsed.has(group.key) &&
+                group.rows.map((row) => (
+                  <TableRow
+                    key={`${group.key}:${row.id}`}
+                    row={row}
+                    columns={columns}
+                    reorderable={false}
+                    drop={null}
+                    onDragOverRow={() => undefined}
+                    onDropRow={() => undefined}
+                    onDragEnd={() => undefined}
+                  />
+                ))}
+              {!collapsed.has(group.key) && (
+                <GroupTotals columns={columns} rows={group.rows} />
+              )}
+            </React.Fragment>
           ))}
+          {!groups &&
+            rows.map((row) => (
+              <TableRow
+                key={row.id}
+                row={row}
+                columns={columns}
+                autoFocus={row.id === focusRowId}
+                reorderable={reorderable}
+                drop={
+                  drop?.rowId === row.id
+                    ? drop.after
+                      ? "after"
+                      : "before"
+                    : null
+                }
+                onDragOverRow={(after) => setDrop({ rowId: row.id, after })}
+                onDropRow={(rowId, after) => dropRow(rowId, row.id, after)}
+                onDragEnd={() => setDrop(null)}
+              />
+            ))}
           {editable && (
             <tr>
               <td colSpan={columns.length + 2}>
@@ -212,6 +262,99 @@ export function TableView({
       </Table>
       {rows.length === 0 && !editable && <Empty>{t("No rows")}</Empty>}
     </Scroll>
+  );
+}
+
+/** Name of a group: an option chip, a date period, a value. */
+function GroupLabel({
+  column,
+  group,
+}: {
+  column: ComputedColumn;
+  group: RowGroup<ComputedRow>;
+}) {
+  const { t } = useTranslation();
+  const { view } = useDatabase();
+  if (!group.key) {
+    return <span>{t("No value")}</span>;
+  }
+  if (column.type === ColumnType.Checkbox) {
+    return <span>{group.key === "true" ? t("Checked") : t("Unchecked")}</span>;
+  }
+  const option = column.options?.find((o) => o.id === group.key);
+  if (option) {
+    return <Chip option={option} />;
+  }
+  if (column.type === ColumnType.Date) {
+    const date = new Date(`${group.key}T00:00:00Z`);
+    switch (view.groupDate ?? "month") {
+      case "year":
+        return <span>{group.key.slice(0, 4)}</span>;
+      case "month":
+        return (
+          <span>
+            {date.toLocaleDateString("ru-RU", {
+              month: "long",
+              year: "numeric",
+              timeZone: "UTC",
+            })}
+          </span>
+        );
+      case "week":
+        return (
+          <span>
+            {t("Week of {{ date }}", { date: formatDate(group.key) })}
+          </span>
+        );
+      default:
+        return <span>{formatDate(group.key)}</span>;
+    }
+  }
+  return <span>{group.label}</span>;
+}
+
+/** Totals of the rows of one group, under the group. */
+function GroupTotals({
+  columns,
+  rows,
+}: {
+  columns: ComputedColumn[];
+  rows: ComputedRow[];
+}) {
+  const { view, editable } = useDatabase();
+  const labels = useTotalLabels();
+  const totals = columns.map((column) => {
+    const kind = view.totals?.[column.id];
+    return kind && totalsFor(column.type).includes(kind) ? kind : undefined;
+  });
+  if (!totals.some(Boolean)) {
+    return null;
+  }
+  return (
+    <GroupTotalRow>
+      <td />
+      {columns.map((column, index) => {
+        const kind = totals[index];
+        return (
+          <td key={column.id}>
+            {kind && (
+              <TotalButton as="div">
+                <TotalLabel>{labels[kind]}</TotalLabel>
+                {formatTotal(
+                  kind,
+                  computeTotal(
+                    kind,
+                    rows.map((row) => row.cells[column.id])
+                  ),
+                  column
+                )}
+              </TotalButton>
+            )}
+          </td>
+        );
+      })}
+      {editable && <td />}
+    </GroupTotalRow>
   );
 }
 
@@ -703,6 +846,37 @@ const TotalButton = styled.button<{ $empty?: boolean }>`
   &:focus-visible,
   &[data-state="open"] {
     opacity: 1;
+  }
+`;
+
+const GroupCell = styled.td`
+  && {
+    background: ${s("backgroundSecondary")};
+  }
+`;
+
+const GroupHeader = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: ${s("text")};
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+`;
+
+const GroupCount = styled.span`
+  color: ${s("textTertiary")};
+  font-weight: 400;
+`;
+
+const GroupTotalRow = styled.tr`
+  td {
+    border-bottom-width: 2px;
   }
 `;
 
