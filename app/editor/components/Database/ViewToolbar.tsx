@@ -28,6 +28,10 @@ import {
   newId,
   operatorsFor,
 } from "@shared/editor/lib/database";
+import {
+  computeDatabase,
+  linkedRows,
+} from "@shared/editor/lib/databaseCompute";
 import { s } from "@shared/styles";
 import {
   Popover,
@@ -68,8 +72,20 @@ export function ViewToolbar({
   onAddRow: () => void;
 }) {
   const { t } = useTranslation();
-  const { data, view, mutator, editable } = useDatabase();
+  const { data, view, mutator, editable, search, setSearch } = useDatabase();
   const [addOpen, setAddOpen] = React.useState(false);
+
+  // View tabs are dragged to reorder them.
+  const dropView = (id: string, targetId: string, after: boolean) => {
+    const moving = data.views.find((v) => v.id === id);
+    if (!moving || id === targetId) {
+      return;
+    }
+    const rest = data.views.filter((v) => v.id !== id);
+    const index = rest.findIndex((v) => v.id === targetId);
+    rest.splice(after ? index + 1 : index, 0, moving);
+    mutator.setAttrs({ views: rest });
+  };
 
   const viewTypes = [
     { type: ViewType.Table, label: t("Table") },
@@ -99,21 +115,42 @@ export function ViewToolbar({
   return (
     <Bar>
       <Tabs>
-        {data.views.map((v) =>
-          v.id === view.id && editable ? (
-            <ViewTabMenu key={v.id} current={v} onSelectView={onSelectView} />
-          ) : (
-            <Tab
-              key={v.id}
-              type="button"
-              $active={v.id === view.id}
-              onClick={() => onSelectView(v.id)}
-            >
-              <ViewIcon type={v.type} />
-              {v.name}
-            </Tab>
-          )
-        )}
+        {data.views.map((v) => (
+          <TabSlot
+            key={v.id}
+            draggable={editable}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(VIEW_DRAG, v.id);
+              event.dataTransfer.effectAllowed = "move";
+            }}
+            onDragOver={(event) => {
+              if (Array.from(event.dataTransfer.types).includes(VIEW_DRAG)) {
+                event.preventDefault();
+              }
+            }}
+            onDrop={(event) => {
+              const id = event.dataTransfer.getData(VIEW_DRAG);
+              if (id) {
+                event.preventDefault();
+                const rect = event.currentTarget.getBoundingClientRect();
+                dropView(id, v.id, event.clientX > rect.left + rect.width / 2);
+              }
+            }}
+          >
+            {v.id === view.id && editable ? (
+              <ViewTabMenu current={v} onSelectView={onSelectView} />
+            ) : (
+              <Tab
+                type="button"
+                $active={v.id === view.id}
+                onClick={() => onSelectView(v.id)}
+              >
+                <ViewIcon type={v.type} />
+                {v.name}
+              </Tab>
+            )}
+          </TabSlot>
+        ))}
         {editable && (
           <Popover open={addOpen} onOpenChange={setAddOpen}>
             <PopoverTrigger>
@@ -140,6 +177,12 @@ export function ViewToolbar({
         )}
       </Tabs>
       <Actions>
+        <SearchInput
+          type="search"
+          placeholder={t("Search")}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
         <SortButton />
         <FilterButton />
         <FieldsButton />
@@ -255,6 +298,7 @@ function SortButton() {
       </PopoverTrigger>
       <PopoverContent width={420} shrink align="end" onClick={stop}>
         <PopoverBody>
+          {!editable && <Hint>{t("Only you see these changes")}</Hint>}
           {view.sort.length === 0 && (
             <Hint>{t("No sorting: manual order")}</Hint>
           )}
@@ -263,7 +307,6 @@ function SortButton() {
             return (
               <RuleRow key={`${rule.columnId}-${index}`}>
                 <Select
-                  disabled={!editable}
                   value={rule.columnId}
                   onChange={(event) =>
                     setRule(index, {
@@ -279,7 +322,6 @@ function SortButton() {
                   ))}
                 </Select>
                 <Select
-                  disabled={!editable}
                   value={rule.upcoming ? "upcoming" : rule.direction}
                   onChange={(event) =>
                     setRule(
@@ -299,23 +341,21 @@ function SortButton() {
                     <option value="upcoming">{t("Nearest dates first")}</option>
                   )}
                 </Select>
-                {editable && (
-                  <IconButton
-                    type="button"
-                    aria-label={t("Remove")}
-                    onClick={() =>
-                      updateView({
-                        sort: view.sort.filter((_, i) => i !== index),
-                      })
-                    }
-                  >
-                    <CloseIcon size={18} />
-                  </IconButton>
-                )}
+                <IconButton
+                  type="button"
+                  aria-label={t("Remove")}
+                  onClick={() =>
+                    updateView({
+                      sort: view.sort.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  <CloseIcon size={18} />
+                </IconButton>
               </RuleRow>
             );
           })}
-          {editable && columns.length > 0 && (
+          {columns.length > 0 && (
             <MenuRow
               type="button"
               onClick={() =>
@@ -350,6 +390,11 @@ function useOperatorLabels(): Record<FilterOperator, string> {
     before: t("before"),
     after: t("after"),
     next_days: t("in the next N days (yearly)"),
+    today: t("is today"),
+    this_week: t("this week"),
+    this_month: t("this month"),
+    last_days: t("in the last N days"),
+    within_days: t("in the next N days"),
     checked: t("is checked"),
     unchecked: t("is not checked"),
   };
@@ -363,12 +408,20 @@ const FilterValue = observer(function FilterValue({
   onChange: (value: string | number) => void;
 }) {
   const { t } = useTranslation();
-  const { computed, editable } = useDatabase();
+  const { computed, linked } = useDatabase();
   const { users } = useStores();
   const column = computed.columns.find((c) => c.id === rule.columnId);
   if (
     !column ||
-    ["is_empty", "is_not_empty", "checked", "unchecked"].includes(rule.operator)
+    [
+      "is_empty",
+      "is_not_empty",
+      "checked",
+      "unchecked",
+      "today",
+      "this_week",
+      "this_month",
+    ].includes(rule.operator)
   ) {
     return null;
   }
@@ -378,7 +431,6 @@ const FilterValue = observer(function FilterValue({
   ) {
     return (
       <Select
-        disabled={!editable}
         value={String(rule.value ?? "")}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -391,10 +443,29 @@ const FilterValue = observer(function FilterValue({
       </Select>
     );
   }
+  if (
+    column.type === ColumnType.Relation ||
+    column.type === ColumnType.Backlink
+  ) {
+    const target = column.relation ? linked.get(column.relation) : undefined;
+    const options = target ? linkedRows(computeDatabase(target)) : [];
+    return (
+      <Select
+        value={String(rule.value ?? "")}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">{t("Choose…")}</option>
+        {options.map((row) => (
+          <option key={row.id} value={row.id}>
+            {row.title || t("Untitled")}
+          </option>
+        ))}
+      </Select>
+    );
+  }
   if (column.type === ColumnType.Person) {
     return (
       <Select
-        disabled={!editable}
         value={String(rule.value ?? "")}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -408,14 +479,19 @@ const FilterValue = observer(function FilterValue({
     );
   }
   const numeric =
-    column.type === ColumnType.Number || rule.operator === "next_days";
+    column.type === ColumnType.Number ||
+    column.type === ColumnType.AutoNumber ||
+    ["next_days", "last_days", "within_days"].includes(rule.operator);
   return (
     <TextInput
-      disabled={!editable}
       type={column.type === ColumnType.Date && !numeric ? "date" : "text"}
       inputMode={numeric ? "numeric" : undefined}
       value={String(rule.value ?? "")}
-      placeholder={rule.operator === "next_days" ? "30" : t("Value")}
+      placeholder={
+        ["next_days", "last_days", "within_days"].includes(rule.operator)
+          ? "30"
+          : t("Value")
+      }
       onChange={(event) =>
         onChange(
           numeric && event.target.value !== ""
@@ -451,13 +527,13 @@ function FilterButton() {
       </PopoverTrigger>
       <PopoverContent width={520} shrink align="end" onClick={stop}>
         <PopoverBody>
+          {!editable && <Hint>{t("Only you see these changes")}</Hint>}
           {view.filters.length === 0 && <Hint>{t("All rows are shown")}</Hint>}
           {view.filters.map((rule, index) => {
             const column = computed.columns.find((c) => c.id === rule.columnId);
             return (
               <RuleRow key={`${rule.columnId}-${index}`}>
                 <Select
-                  disabled={!editable}
                   value={rule.columnId}
                   onChange={(event) => {
                     const next = computed.columns.find(
@@ -479,7 +555,6 @@ function FilterButton() {
                   ))}
                 </Select>
                 <Select
-                  disabled={!editable}
                   value={rule.operator}
                   onChange={(event) =>
                     setRule(index, {
@@ -497,23 +572,21 @@ function FilterButton() {
                   rule={rule}
                   onChange={(value) => setRule(index, { value })}
                 />
-                {editable && (
-                  <IconButton
-                    type="button"
-                    aria-label={t("Remove")}
-                    onClick={() =>
-                      updateView({
-                        filters: view.filters.filter((_, i) => i !== index),
-                      })
-                    }
-                  >
-                    <CloseIcon size={18} />
-                  </IconButton>
-                )}
+                <IconButton
+                  type="button"
+                  aria-label={t("Remove")}
+                  onClick={() =>
+                    updateView({
+                      filters: view.filters.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  <CloseIcon size={18} />
+                </IconButton>
               </RuleRow>
             );
           })}
-          {editable && computed.columns.length > 0 && (
+          {computed.columns.length > 0 && (
             <MenuRow
               type="button"
               onClick={() =>
@@ -562,7 +635,6 @@ function FieldsButton() {
               <MenuLabel>{t("Group by")}</MenuLabel>
               {selectColumns.length ? (
                 <Select
-                  disabled={!editable}
                   value={view.groupBy ?? ""}
                   onChange={(event) =>
                     updateView({ groupBy: event.target.value })
@@ -588,7 +660,6 @@ function FieldsButton() {
               <MenuLabel>{t("Date")}</MenuLabel>
               {dateColumns.length ? (
                 <Select
-                  disabled={!editable}
                   value={view.dateColumn ?? ""}
                   onChange={(event) =>
                     updateView({ dateColumn: event.target.value })
@@ -609,13 +680,27 @@ function FieldsButton() {
               <CheckRow>
                 <input
                   type="checkbox"
-                  disabled={!editable}
                   checked={!!view.recurring}
                   onChange={(event) =>
                     updateView({ recurring: event.target.checked })
                   }
                 />
                 {t("Repeat every year (birthdays)")}
+              </CheckRow>
+              <MenuDivider />
+            </>
+          )}
+          {editable && view.type !== ViewType.Calendar && (
+            <>
+              <CheckRow>
+                <input
+                  type="checkbox"
+                  checked={!!view.newRowsFirst}
+                  onChange={(event) =>
+                    updateView({ newRowsFirst: event.target.checked })
+                  }
+                />
+                {t("New rows at the top")}
               </CheckRow>
               <MenuDivider />
             </>
@@ -627,7 +712,7 @@ function FieldsButton() {
               <CheckRow key={column.id}>
                 <input
                   type="checkbox"
-                  disabled={!editable || index === 0}
+                  disabled={index === 0}
                   checked={!hidden}
                   onChange={() =>
                     updateView({
@@ -739,6 +824,28 @@ const Tab = styled.button<{ $active?: boolean }>`
 
   &:hover {
     color: ${s("text")};
+  }
+`;
+
+const VIEW_DRAG = "text/x-database-view";
+
+const TabSlot = styled.span`
+  display: inline-flex;
+`;
+
+const SearchInput = styled.input`
+  width: 140px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid ${s("inputBorder")};
+  border-radius: 6px;
+  background: none;
+  color: ${s("text")};
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: ${s("accent")};
   }
 `;
 

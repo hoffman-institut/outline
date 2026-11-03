@@ -21,7 +21,26 @@ export enum ColumnType {
   Relation = "relation",
   Backlink = "backlink",
   Rollup = "rollup",
+  AutoNumber = "auto_number",
 }
+
+/** How numbers are shown: as typed, with thousands separators, as money. */
+export type NumberFormat =
+  | "plain"
+  | "grouped"
+  | "ruble"
+  | "dollar"
+  | "euro"
+  | "percent";
+
+export const numberFormats: NumberFormat[] = [
+  "plain",
+  "grouped",
+  "ruble",
+  "dollar",
+  "euro",
+  "percent",
+];
 
 export enum ViewType {
   Table = "table",
@@ -64,6 +83,13 @@ export type Column = {
   relation?: DatabaseRef;
   /** Rollup columns: what to calculate over the linked rows. */
   rollup?: Rollup;
+  /** Number columns (and formulas, rollups with numbers): display format. */
+  numberFormat?: NumberFormat;
+  /** Number columns: show a progress bar from 0 to `max` (100 by default). */
+  showAs?: "bar";
+  max?: number;
+  /** Auto number columns: text before the number, e.g. "TASK-". */
+  prefix?: string;
 };
 
 /** A database block in a document. */
@@ -105,6 +131,11 @@ export type FilterOperator =
   | "before"
   | "after"
   | "next_days"
+  | "today"
+  | "this_week"
+  | "this_month"
+  | "last_days"
+  | "within_days"
   | "checked"
   | "unchecked";
 
@@ -130,6 +161,8 @@ export type View = {
   recurring?: boolean;
   /** Table view: the total shown under each column, by column id. */
   totals?: Record<string, TotalKind>;
+  /** New rows go to the top instead of the bottom. */
+  newRowsFirst?: boolean;
 };
 
 export type TotalKind =
@@ -335,6 +368,35 @@ export function daysUntilAnniversary(
 }
 
 /**
+ * Formats a number for display.
+ *
+ * @param column the column with its number format.
+ * @param n the number.
+ * @returns the text, e.g. "1 250 000 ₽".
+ */
+export function formatNumber(
+  column: Pick<Column, "numberFormat">,
+  n: number
+): string {
+  const grouped = (digits: number) =>
+    n.toLocaleString("ru-RU", { maximumFractionDigits: digits });
+  switch (column.numberFormat) {
+    case "grouped":
+      return grouped(10);
+    case "ruble":
+      return `${grouped(2)} ₽`;
+    case "dollar":
+      return `${grouped(2)} $`;
+    case "euro":
+      return `${grouped(2)} €`;
+    case "percent":
+      return `${grouped(10)} %`;
+    default:
+      return String(n);
+  }
+}
+
+/**
  * Human readable value of a cell, used for plain text, search and sorting of
  * select options.
  *
@@ -376,7 +438,11 @@ export function displayValue(
       // Row ids; the titles live in the linked database.
       return "";
     case ColumnType.Number:
-      return typeof value === "number" ? String(value) : String(value ?? "");
+      return typeof value === "number"
+        ? formatNumber(column, value)
+        : String(value ?? "");
+    case ColumnType.AutoNumber:
+      return `${column.prefix ?? ""}${value}`;
     default:
       return String(value ?? "");
   }
@@ -401,7 +467,10 @@ export function convertValue(
   const text = displayValue(from, value);
   switch (to.type) {
     case ColumnType.Number: {
-      const n = parseFloat(text.replace(",", "."));
+      if (typeof value === "number") {
+        return value;
+      }
+      const n = parseFloat(text.replace(/\s/g, "").replace(",", "."));
       return Number.isFinite(n) ? n : null;
     }
     case ColumnType.Checkbox:
@@ -525,6 +594,7 @@ function compareCells(
   let result: number;
   switch (column.type) {
     case ColumnType.Number:
+    case ColumnType.AutoNumber:
       result = Number(a) - Number(b);
       break;
     case ColumnType.Checkbox:
@@ -563,6 +633,12 @@ export function matchesFilter(
   today = todayValue()
 ): boolean {
   const empty = isEmptyValue(value);
+  if (
+    column.type === ColumnType.Date &&
+    relativeDateOperators.includes(filter.operator)
+  ) {
+    return matchesRelativeDate(value, filter, today);
+  }
   switch (filter.operator) {
     case "is_empty":
       return empty;
@@ -581,7 +657,15 @@ export function matchesFilter(
   }
   const needle = String(filter.value);
   switch (column.type) {
-    case ColumnType.Number: {
+    case ColumnType.Relation:
+    case ColumnType.Backlink: {
+      const ids = Array.isArray(value) ? value : [];
+      return filter.operator === "not_contains"
+        ? !ids.includes(needle)
+        : ids.includes(needle);
+    }
+    case ColumnType.Number:
+    case ColumnType.AutoNumber: {
       const n = Number(value);
       const target = Number(filter.value);
       if (empty) {
@@ -633,6 +717,139 @@ export function matchesFilter(
   }
 }
 
+const relativeDateOperators: FilterOperator[] = [
+  "today",
+  "this_week",
+  "this_month",
+  "last_days",
+  "within_days",
+];
+
+const dayNumber = (value: string) =>
+  Math.round(
+    Date.UTC(+value.slice(0, 4), +value.slice(5, 7) - 1, +value.slice(8, 10)) /
+      86400000
+  );
+
+/** Monday of the week of a day number (1970-01-01 was a Thursday). */
+const weekStart = (day: number) => day - ((day + 3) % 7);
+
+function matchesRelativeDate(
+  value: CellValue | undefined,
+  filter: FilterRule,
+  today: string
+): boolean {
+  const days = Number(filter.value);
+  const needsDays =
+    filter.operator === "last_days" || filter.operator === "within_days";
+  if (needsDays && (filter.value === undefined || filter.value === "")) {
+    // An unfinished filter does not hide anything.
+    return true;
+  }
+  if (!parseDateValue(value)) {
+    return false;
+  }
+  const day = dayNumber(String(value));
+  const now = dayNumber(today);
+  switch (filter.operator) {
+    case "today":
+      return day === now;
+    case "this_week":
+      return weekStart(day) === weekStart(now);
+    case "this_month":
+      return String(value).slice(0, 7) === today.slice(0, 7);
+    case "last_days":
+      return day <= now && day >= now - days;
+    case "within_days":
+      return day >= now && day <= now + days;
+    default:
+      return true;
+  }
+}
+
+/**
+ * Cells for a row added to a filtered view, so that the new row matches the
+ * filters and stays visible.
+ *
+ * @param columns the columns of the database.
+ * @param filters the filters of the view.
+ * @returns initial cell values.
+ */
+export function cellsForFilters(
+  columns: Column[],
+  filters: FilterRule[]
+): Record<string, CellValue> {
+  const cells: Record<string, CellValue> = {};
+  for (const filter of filters) {
+    const column = columns.find((c) => c.id === filter.columnId);
+    const value = filter.value;
+    if (!column) {
+      continue;
+    }
+    if (filter.operator === "checked") {
+      cells[column.id] = true;
+      continue;
+    }
+    if (value === undefined || value === "") {
+      continue;
+    }
+    switch (column.type) {
+      case ColumnType.Select:
+        if (filter.operator === "is") {
+          cells[column.id] = String(value);
+        }
+        break;
+      case ColumnType.MultiSelect:
+      case ColumnType.Person:
+      case ColumnType.Relation:
+        if (filter.operator === "contains") {
+          cells[column.id] = [String(value)];
+        }
+        break;
+      case ColumnType.Number:
+        if (filter.operator === "is") {
+          cells[column.id] = Number(value);
+        }
+        break;
+      case ColumnType.Date:
+        if (filter.operator === "is") {
+          cells[column.id] = String(value);
+        }
+        break;
+      case ColumnType.Text:
+      case ColumnType.Url:
+      case ColumnType.Email:
+      case ColumnType.Phone:
+        if (filter.operator === "is" || filter.operator === "contains") {
+          cells[column.id] = String(value);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return cells;
+}
+
+/**
+ * Next number of an auto number column.
+ *
+ * @param rows all rows.
+ * @param columnId the auto number column.
+ * @returns the largest number plus one.
+ */
+export function nextAutoNumber(
+  rows: Pick<Row, "cells">[],
+  columnId: string
+): number {
+  return (
+    rows.reduce((max, row) => {
+      const n = row.cells[columnId];
+      return typeof n === "number" && n > max ? n : max;
+    }, 0) + 1
+  );
+}
+
 /**
  * Rows of a view: filtered, then sorted. Without sort rules the document
  * order is kept (manual order).
@@ -663,18 +880,32 @@ export function rowsForView<R extends Row>(
   if (!rules.length) {
     return filtered;
   }
+  // Relations sort by the titles of the linked rows (calculated rows carry
+  // them in `links`).
+  const sortable = (
+    column: Column,
+    row: R
+  ): [Column, CellValue | undefined] => {
+    if (
+      column.type === ColumnType.Relation ||
+      column.type === ColumnType.Backlink
+    ) {
+      const links = (row as { links?: Record<string, { title: string }[]> })
+        .links?.[column.id];
+      return [
+        { ...column, type: ColumnType.Text },
+        (links ?? []).map((link) => link.title).join(", "),
+      ];
+    }
+    return [column, row.cells[column.id]];
+  };
   return filtered
     .map((row, index) => ({ row, index }))
     .sort((x, y) => {
       for (const rule of rules) {
-        const column = byId.get(rule.columnId)!;
-        const result = compareCells(
-          column,
-          x.row.cells[column.id],
-          y.row.cells[column.id],
-          rule,
-          today
-        );
+        const [column, a] = sortable(byId.get(rule.columnId)!, x.row);
+        const [, b] = sortable(byId.get(rule.columnId)!, y.row);
+        const result = compareCells(column, a, b, rule, today);
         if (result !== 0) {
           return result;
         }
@@ -688,6 +919,7 @@ export function rowsForView<R extends Row>(
 export function operatorsFor(type: ColumnType): FilterOperator[] {
   switch (type) {
     case ColumnType.Number:
+    case ColumnType.AutoNumber:
       return ["is", "is_not", "gt", "lt", "is_empty", "is_not_empty"];
     case ColumnType.Select:
       return ["is", "is_not", "is_empty", "is_not_empty"];
@@ -695,12 +927,24 @@ export function operatorsFor(type: ColumnType): FilterOperator[] {
     case ColumnType.Person:
       return ["contains", "not_contains", "is_empty", "is_not_empty"];
     case ColumnType.Date:
-      return ["is", "before", "after", "next_days", "is_empty", "is_not_empty"];
+      return [
+        "is",
+        "before",
+        "after",
+        "today",
+        "this_week",
+        "this_month",
+        "last_days",
+        "within_days",
+        "next_days",
+        "is_empty",
+        "is_not_empty",
+      ];
     case ColumnType.Checkbox:
       return ["checked", "unchecked"];
     case ColumnType.Relation:
     case ColumnType.Backlink:
-      return ["is_empty", "is_not_empty"];
+      return ["contains", "not_contains", "is_empty", "is_not_empty"];
     default:
       return [
         "contains",
@@ -868,6 +1112,12 @@ export function normalizeDatabase(input: unknown): DatabaseData {
                 },
               }
             : {}),
+          ...(numberFormats.includes(c.numberFormat as NumberFormat)
+            ? { numberFormat: c.numberFormat }
+            : {}),
+          ...(c.showAs === "bar" ? { showAs: "bar" as const } : {}),
+          ...(typeof c.max === "number" && c.max > 0 ? { max: c.max } : {}),
+          ...(typeof c.prefix === "string" ? { prefix: c.prefix } : {}),
           ...(c.rollup &&
           typeof c.rollup.columnId === "string" &&
           typeof c.rollup.targetColumnId === "string" &&
@@ -906,6 +1156,7 @@ export function normalizeDatabase(input: unknown): DatabaseData {
                 ),
               }
             : {}),
+          ...(v.newRowsFirst ? { newRowsFirst: true } : {}),
         }))
     : [];
   const rows: Row[] = Array.isArray(raw.rows)

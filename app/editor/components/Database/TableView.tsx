@@ -6,7 +6,9 @@ import type { CellValue, Column, TotalKind } from "@shared/editor/lib/database";
 import {
   ColumnType,
   computeTotal,
+  displayValue,
   formatDate,
+  formatNumber,
   moveColumn,
   newId,
   rowDropIndex,
@@ -44,6 +46,8 @@ const defaultWidth = (type: ColumnType) =>
 const clampWidth = (width: number) =>
   Math.min(1000, Math.max(60, Math.round(width)));
 
+let measure: HTMLCanvasElement | undefined;
+
 /** Spreadsheet-like view: one row per record, one column per field. */
 export function TableView({
   rows,
@@ -53,7 +57,8 @@ export function TableView({
   focusRowId?: string;
 }) {
   const { t } = useTranslation();
-  const { data, computed, view, editable, mutator } = useDatabase();
+  const { data, computed, view, editable, mutator, addRow, userName } =
+    useDatabase();
   const columns = computed.columns.filter((c) => !view.hidden.includes(c.id));
   // Manual order only makes sense when the view is not sorted.
   const reorderable = editable && view.sort.length === 0;
@@ -89,6 +94,29 @@ export function TableView({
     }
   };
 
+  // Double click on the edge of a header fits the column to its content.
+  const fitWidth = (column: ComputedColumn) => {
+    const context = (measure ??= document.createElement("canvas")).getContext(
+      "2d"
+    );
+    if (!context) {
+      return;
+    }
+    context.font = `14px ${getComputedStyle(document.body).fontFamily}`;
+    const texts = [
+      column.name,
+      ...rows.map(
+        (row) =>
+          row.links?.[column.id]?.map((link) => link.title).join(", ") ??
+          displayValue(column, row.cells[column.id], userName)
+      ),
+    ];
+    const widest = Math.max(
+      ...texts.map((text) => context.measureText(text).width)
+    );
+    saveWidth(column, clampWidth(Math.min(widest + 44, 600)));
+  };
+
   const showTotals =
     editable || columns.some((column) => view.totals?.[column.id]);
 
@@ -114,6 +142,7 @@ export function TableView({
                   setResize({ columnId: column.id, width: clampWidth(width) })
                 }
                 onResizeEnd={(width) => saveWidth(column, clampWidth(width))}
+                onFitWidth={() => fitWidth(column)}
               />
             ))}
             {editable && (
@@ -157,7 +186,7 @@ export function TableView({
           {editable && (
             <tr>
               <td colSpan={columns.length + 2}>
-                <NewRow type="button" onClick={() => mutator.addRow()}>
+                <NewRow type="button" onClick={() => addRow()}>
                   <PlusIcon size={18} />
                   {t("New row")}
                 </NewRow>
@@ -193,11 +222,13 @@ function HeaderCell({
   width,
   onResize,
   onResizeEnd,
+  onFitWidth,
 }: {
   column: ComputedColumn;
   width: number;
   onResize: (width: number) => void;
   onResizeEnd: (width: number) => void;
+  onFitWidth: () => void;
 }) {
   const { editable, data, mutator } = useDatabase();
   const [open, setOpen] = React.useState(false);
@@ -269,6 +300,7 @@ function HeaderCell({
       </Popover>
       <Resizer
         aria-hidden
+        onDoubleClick={onFitWidth}
         onPointerDown={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -297,16 +329,22 @@ function HeaderCell({
   );
 }
 
-function formatTotal(kind: TotalKind, value: number | string | undefined) {
+function formatTotal(
+  kind: TotalKind,
+  value: number | string | undefined,
+  column: Column
+) {
   if (value === undefined) {
     return "—";
   }
   if (kind === "earliest" || kind === "latest") {
     return formatDate(value);
   }
-  const text = Number(value).toLocaleString("ru-RU", {
-    maximumFractionDigits: 2,
-  });
+  const amount = ["sum", "avg", "min", "max"].includes(kind);
+  const text =
+    amount && column.numberFormat
+      ? formatNumber(column, Number(value))
+      : Number(value).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
   return kind === "percent_not_empty" || kind === "percent_checked"
     ? `${text}%`
     : text;
@@ -333,7 +371,7 @@ function TotalCell({
   const result = kind && (
     <>
       <TotalLabel>{labels[kind]}</TotalLabel>
-      {formatTotal(kind, computeTotal(kind, values))}
+      {formatTotal(kind, computeTotal(kind, values), column)}
     </>
   );
 
@@ -528,39 +566,70 @@ function TableRow({
   );
 }
 
+// Tall tables scroll inside the box, so the header and the horizontal
+// scrollbar stay in view.
 const Scroll = styled.div`
-  overflow-x: auto;
+  max-height: 75vh;
+  overflow: auto;
   margin: 0 0 4px;
 `;
 
+// Separate borders: collapsed borders do not stay with sticky cells.
 const Table = styled.table`
   width: max-content;
   min-width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
 
   th,
   td {
-    border: 1px solid ${s("divider")};
+    border: 0;
+    border-right: 1px solid ${s("divider")};
+    border-bottom: 1px solid ${s("divider")};
     padding: 0;
     vertical-align: top;
     background: none;
   }
 
   th:first-child,
-  td:first-child {
-    border-left: 0;
-    border-right: 0;
-  }
-
+  td:first-child,
   th:last-child,
   td:last-child {
     border-right: 0;
   }
 
   thead th {
-    border-top: 0;
+    position: sticky;
+    top: 0;
+    z-index: 2;
     font-weight: 500;
+    background: ${s("background")};
+  }
+
+  /* The row handle and the first column stay when scrolling sideways. */
+  th:nth-child(1),
+  td:nth-child(1),
+  th:nth-child(2),
+  td:nth-child(2) {
+    position: sticky;
+    z-index: 1;
+    background: ${s("background")};
+  }
+
+  th:nth-child(1),
+  td:nth-child(1) {
+    left: 0;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    left: 32px;
+  }
+
+  thead th:nth-child(1),
+  thead th:nth-child(2) {
+    z-index: 3;
   }
 
   tr:hover td:first-child button {
@@ -570,7 +639,6 @@ const Table = styled.table`
 
 const HeaderTh = styled.th<{ $drop: "before" | "after" | null }>`
   && {
-    position: relative;
     box-shadow: ${(props) =>
       props.$drop === "before"
         ? `inset 3px 0 0 ${props.theme.accent}`

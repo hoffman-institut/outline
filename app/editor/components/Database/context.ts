@@ -1,6 +1,7 @@
 import type { EditorView } from "prosemirror-view";
 import * as React from "react";
 import type {
+  CellValue,
   Column,
   DatabaseData,
   SelectOption,
@@ -28,7 +29,22 @@ export type DatabaseContextValue = {
   createOption: (column: Column, name: string) => SelectOption;
   /** Opens the editor of a row (card). */
   openRow: (rowId: string) => void;
-};
+  /**
+   * Saves a changed view. Readers change their own copy, which lives until
+   * the page is reloaded.
+   */
+  updateView: (view: View) => void;
+  /**
+   * Adds a row that matches the filters of the view, at the top or the
+   * bottom as the view says.
+   *
+   * @returns the id of the new row.
+   */
+  addRow: (cells?: Record<string, CellValue>) => string;
+  /** Text of the search box. */
+  search: string;
+  setSearch: (search: string) => void;
+  userName: (id: string) => string | undefined;
 
 export const DatabaseContext = React.createContext<DatabaseContextValue | null>(
   null
@@ -44,9 +60,9 @@ export function useDatabase(): DatabaseContextValue {
 
 /** Updates the current view, keeping the other views. */
 export function useUpdateView() {
-  const { view, mutator } = useDatabase();
+  const { view, updateView } = useDatabase();
   return React.useCallback(
-    (patch: Partial<View>) => mutator.setView({ ...view, ...patch }),
-    [view, mutator]
+    (patch: Partial<View>) => updateView({ ...view, ...patch }),
+    [view, updateView]
   );
 }

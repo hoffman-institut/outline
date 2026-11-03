@@ -92,6 +92,7 @@ function cellToFormula(
   }
   switch (column.type) {
     case ColumnType.Number:
+    case ColumnType.AutoNumber:
       return typeof value === "number" ? value : String(value);
     case ColumnType.Date:
       return formulaValue.parseDate(String(value)) ?? null;
@@ -161,6 +162,34 @@ export function linkedRows(
     id: row.id,
     title: title ? displayValue(title, row.cells[title.id], userName) : "",
   }));
+}
+
+/**
+ * Whether a row contains a text in any of the columns (search box).
+ *
+ * @param columns columns to search in.
+ * @param row a calculated row.
+ * @param query the text to find, any case.
+ * @param userName resolver of user names.
+ * @returns true when found or when the query is empty.
+ */
+export function rowMatches(
+  columns: ComputedColumn[],
+  row: ComputedRow,
+  query: string,
+  userName?: (id: string) => string | undefined
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+  return columns.some((column) => {
+    const links = row.links?.[column.id];
+    const text = links
+      ? links.map((link) => link.title).join(" ")
+      : displayValue(column, row.cells[column.id], userName);
+    return text.toLowerCase().includes(needle);
+  });
 }
 
 /**

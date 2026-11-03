@@ -2,17 +2,23 @@ import { observer } from "mobx-react";
 import * as React from "react";
 import styled, { css } from "styled-components";
 import type {
+  CellValue,
   Column,
   DatabaseRef,
   SelectOption,
+  View,
 } from "@shared/editor/lib/database";
 import {
   ViewType,
+  cellsForFilters,
   newId,
   nextOptionColor,
   rowsForView,
 } from "@shared/editor/lib/database";
-import { computeDatabase } from "@shared/editor/lib/databaseCompute";
+import {
+  computeDatabase,
+  rowMatches,
+} from "@shared/editor/lib/databaseCompute";
 import { databaseFromNode } from "@shared/editor/nodes/Database";
 import type { ComponentProps } from "@shared/editor/types";
 import { s } from "@shared/styles";
@@ -68,7 +74,14 @@ function DatabaseBlock({
   );
   const [openRowId, setOpenRowId] = React.useState<string | null>(null);
   const [focusRowId, setFocusRowId] = React.useState<string | undefined>();
-  const activeView = data.views.find((v) => v.id === activeId) ?? data.views[0];
+  const [search, setSearch] = React.useState("");
+  // Views changed by readers: not saved, only for them until reload.
+  const [ownViews, setOwnViews] = React.useState<Record<string, View>>({});
+  const storedView = data.views.find((v) => v.id === activeId) ?? data.views[0];
+  const activeView =
+    !isEditable && storedView
+      ? (ownViews[storedView.id] ?? storedView)
+      : storedView;
 
   // Columns are read from the latest node when an option is created, so
   // several quick edits do not overwrite each other.
@@ -109,12 +122,29 @@ function DatabaseBlock({
     return null;
   }
 
-  const computed = computeDatabase(data, {
-    userName: (id) => users.get(id)?.name,
-    related: linked.get,
-  });
-  const rows = rowsForView(computed, activeView);
+  const userName = (id: string) => users.get(id)?.name;
+  const computed = computeDatabase(data, { userName, related: linked.get });
+  const shownColumns = computed.columns.filter(
+    (c) => !activeView.hidden.includes(c.id)
+  );
+  const rows = rowsForView(computed, activeView).filter((row) =>
+    rowMatches(shownColumns, row, search, userName)
+  );
   const openRow = computed.rows.find((row) => row.id === openRowId);
+
+  const updateView = (next: View) => {
+    if (isEditable) {
+      mutator.setView(next);
+    } else {
+      setOwnViews((views) => ({ ...views, [next.id]: next }));
+    }
+  };
+
+  const addRow = (cells: Record<string, CellValue> = {}) =>
+    mutator.addRow(
+      { ...cellsForFilters(data.columns, activeView.filters), ...cells },
+      activeView.newRowsFirst ? data.rows[0]?.id : undefined
+    );
 
   const context: DatabaseContextValue = {
     data,
@@ -128,6 +158,11 @@ function DatabaseBlock({
     editable: isEditable,
     createOption,
     openRow: setOpenRowId,
+    updateView,
+    addRow,
+    search,
+    setSearch,
+    userName,
   };
 
   return (
@@ -137,7 +172,7 @@ function DatabaseBlock({
         <ViewToolbar
           onSelectView={selectView}
           onAddRow={() => {
-            const id = mutator.addRow();
+            const id = addRow();
             if (activeView.type === ViewType.Table) {
               setFocusRowId(id);
             } else {

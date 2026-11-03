@@ -21,7 +21,7 @@ const NONE = "__none__";
 /** Kanban board: one lane per option of the grouping select column. */
 export function BoardView({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
-  const { data, computed, view, editable, mutator } = useDatabase();
+  const { data, computed, view, editable, mutator, addRow } = useDatabase();
   const groupColumn = data.columns.find(
     (c) => c.id === view.groupBy && c.type === ColumnType.Select
   );
@@ -99,9 +99,7 @@ export function BoardView({ rows }: { rows: Row[] }) {
               <AddCard
                 type="button"
                 onClick={() =>
-                  mutator.addRow(
-                    lane.id === NONE ? {} : { [groupColumn.id]: lane.id }
-                  )
+                  addRow(lane.id === NONE ? {} : { [groupColumn.id]: lane.id })
                 }
               >
                 <PlusIcon size={16} />

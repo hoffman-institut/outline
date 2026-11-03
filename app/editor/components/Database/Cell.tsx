@@ -12,6 +12,7 @@ import type {
 } from "@shared/editor/lib/database";
 import {
   ColumnType,
+  displayValue,
   formatDate,
   parseDateValue,
   todayValue,
@@ -62,6 +63,9 @@ export function Cell(props: CellProps) {
     case ColumnType.Relation:
     case ColumnType.Backlink:
       return <RelationCell {...props} />;
+    case ColumnType.AutoNumber:
+      // Numbers are given to new rows, they are not typed.
+      return <TextCell {...props} editable={false} />;
     default:
       return <TextCell {...props} />;
   }
@@ -186,6 +190,13 @@ function linkFor(type: ColumnType, text: string): string | undefined {
 function TextCell({ column, value, editable, onChange, autoFocus }: CellProps) {
   const isNumber = column.type === ColumnType.Number;
   const text = value === null || value === undefined ? "" : String(value);
+  // Numbers are shown formatted (1 500 ₽) and edited as typed (1500).
+  const shown =
+    text &&
+    (isNumber || column.type === ColumnType.AutoNumber) &&
+    typeof value === "number"
+      ? displayValue(column, value)
+      : text;
   const [editing, setEditing] = React.useState(!!autoFocus && editable);
   const [draft, setDraft] = React.useState(text);
 
@@ -234,8 +245,23 @@ function TextCell({ column, value, editable, onChange, autoFocus }: CellProps) {
 
   const href = linkFor(column.type, text);
   return (
-    <CellText $number={isNumber} onClick={start} $editable={editable}>
-      {href ? (
+    <CellText
+      $number={isNumber || column.type === ColumnType.AutoNumber}
+      onClick={start}
+      $editable={editable}
+    >
+      {isNumber && column.showAs === "bar" && typeof value === "number" ? (
+        <Progress>
+          <ProgressTrack>
+            <ProgressFill
+              style={{
+                width: `${Math.max(0, Math.min(100, (value / (column.max ?? 100)) * 100))}%`,
+              }}
+            />
+          </ProgressTrack>
+          {shown}
+        </Progress>
+      ) : href ? (
         <a
           href={href}
           target="_blank"
@@ -245,7 +271,7 @@ function TextCell({ column, value, editable, onChange, autoFocus }: CellProps) {
           {text}
         </a>
       ) : (
-        text
+        shown
       )}
     </CellText>
   );
@@ -621,6 +647,27 @@ const Chips = styled.span<{ $wrap?: boolean }>`
   flex-wrap: wrap;
   gap: 4px;
   ${(props) => props.$wrap && "padding: 2px 2px 6px;"}
+`;
+
+const Progress = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ProgressTrack = styled.span`
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: ${s("divider")};
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.span`
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: ${s("accent")};
 `;
 
 const LinkChip = styled.span`

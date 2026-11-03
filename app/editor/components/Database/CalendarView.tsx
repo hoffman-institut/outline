@@ -24,7 +24,7 @@ const isLeapYear = (year: number) =>
 export function CalendarView({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
   const locale = (useUserLocale() ?? "ru_RU").replace("_", "-");
-  const { data, computed, view, editable, mutator, openRow } = useDatabase();
+  const { data, computed, view, editable, openRow, addRow } = useDatabase();
   const now = new Date();
   const [cursor, setCursor] = React.useState({
     year: now.getFullYear(),
@@ -137,7 +137,7 @@ export function CalendarView({ rows }: { rows: Row[] }) {
                   <AddButton
                     type="button"
                     aria-label={t("New", { context: "database" })}
-                    onClick={() => mutator.addRow({ [dateColumn.id]: key })}
+                    onClick={() => addRow({ [dateColumn.id]: key })}
                   >
                     <PlusIcon size={14} />
                   </AddButton>

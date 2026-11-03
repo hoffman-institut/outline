@@ -2241,5 +2241,22 @@
   "Add a relation column first": "Сначала добавьте столбец-связь",
   "Through relation": "Через связь",
   "Column of the linked database": "Столбец связанной базы",
-  "Show values": "Показать значения"
+  "Show values": "Показать значения",
+  "Only you see these changes": "Изменения видите только вы, до перезагрузки страницы",
+  "New rows at the top": "Новые записи — сверху",
+  "is today": "сегодня",
+  "this week": "на этой неделе",
+  "this month": "в этом месяце",
+  "in the last N days": "за последние N дней",
+  "in the next N days": "в ближайшие N дней",
+  "Auto number": "Автономер",
+  "As typed": "Как введено",
+  "With thousands separators": "С разделителями тысяч",
+  "Rubles": "Рубли, ₽",
+  "Dollars": "Доллары, $",
+  "Euros": "Евро, €",
+  "Percent": "Проценты, %",
+  "Number format": "Формат числа",
+  "Show as a bar, maximum": "Полосой, максимум",
+  "Prefix": "Префикс"
 }

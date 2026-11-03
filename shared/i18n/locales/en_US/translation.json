@@ -2049,5 +2049,22 @@
   "Add a relation column first": "Add a relation column first",
   "Through relation": "Through relation",
   "Column of the linked database": "Column of the linked database",
-  "Show values": "Show values"
+  "Show values": "Show values",
+  "Only you see these changes": "Only you see these changes",
+  "New rows at the top": "New rows at the top",
+  "is today": "is today",
+  "this week": "this week",
+  "this month": "this month",
+  "in the last N days": "in the last N days",
+  "in the next N days": "in the next N days",
+  "Auto number": "Auto number",
+  "As typed": "As typed",
+  "With thousands separators": "With thousands separators",
+  "Rubles": "Rubles",
+  "Dollars": "Dollars",
+  "Euros": "Euros",
+  "Percent": "Percent",
+  "Number format": "Number format",
+  "Show as a bar, maximum": "Show as a bar, maximum",
+  "Prefix": "Prefix"
 }

@@ -1,9 +1,12 @@
-import type { Column, Row, View } from "./database";
+import type { Column, FilterRule, Row, View } from "./database";
 import {
   ColumnType,
   ViewType,
+  cellsForFilters,
   computeTotal,
   convertValue,
+  formatNumber,
+  nextAutoNumber,
   daysUntilAnniversary,
   displayValue,
   moveColumn,
@@ -264,5 +267,181 @@ describe("computeTotal", () => {
       ],
     });
     expect(data.views[0].totals).toEqual({ name: "unique" });
+  });
+});
+
+describe("number formats", () => {
+  const plain = (s: string) => s.replace(/\s/g, " ");
+  it("formats money, percents and thousands", () => {
+    expect(formatNumber({}, 1250000.5)).toBe("1250000.5");
+    expect(plain(formatNumber({ numberFormat: "grouped" }, 1250000.5))).toBe(
+      "1 250 000,5"
+    );
+    expect(plain(formatNumber({ numberFormat: "ruble" }, 1500))).toBe(
+      "1 500 ₽"
+    );
+    expect(plain(formatNumber({ numberFormat: "percent" }, 45))).toBe("45 %");
+  });
+
+  it("keeps numbers when a formatted column changes type", () => {
+    const money: Column = {
+      id: "m",
+      name: "Sum",
+      type: ColumnType.Number,
+      numberFormat: "ruble",
+    };
+    const target: Column = { id: "m", name: "Sum", type: ColumnType.Number };
+    expect(convertValue(money, target, 1500)).toBe(1500);
+    expect(
+      convertValue({ ...money, type: ColumnType.Text }, target, "1 500")
+    ).toBe(1500);
+  });
+});
+
+describe("relative date filters", () => {
+  const today = "2026-11-04"; // Wednesday
+  const filter = (operator: FilterRule["operator"], value?: number) => ({
+    columnId: "bd",
+    operator,
+    value,
+  });
+  it("matches today, this week and this month", () => {
+    expect(matchesFilter(birthday, "2026-11-04", filter("today"), today)).toBe(
+      true
+    );
+    expect(
+      matchesFilter(birthday, "2026-11-02", filter("this_week"), today)
+    ).toBe(true);
+    expect(
+      matchesFilter(birthday, "2026-11-08", filter("this_week"), today)
+    ).toBe(true);
+    expect(
+      matchesFilter(birthday, "2026-11-09", filter("this_week"), today)
+    ).toBe(false);
+    expect(
+      matchesFilter(birthday, "2026-11-30", filter("this_month"), today)
+    ).toBe(true);
+    expect(matchesFilter(birthday, null, filter("today"), today)).toBe(false);
+  });
+
+  it("matches the last and the next N days", () => {
+    expect(
+      matchesFilter(birthday, "2026-10-28", filter("last_days", 7), today)
+    ).toBe(true);
+    expect(
+      matchesFilter(birthday, "2026-10-27", filter("last_days", 7), today)
+    ).toBe(false);
+    expect(
+      matchesFilter(birthday, "2026-11-14", filter("within_days", 10), today)
+    ).toBe(true);
+    expect(
+      matchesFilter(birthday, "2025-11-14", filter("within_days", 10), today)
+    ).toBe(false);
+    // Unfinished filter keeps the row.
+    expect(matchesFilter(birthday, null, filter("last_days"), today)).toBe(
+      true
+    );
+  });
+});
+
+describe("relation filters and sorting", () => {
+  const relation: Column = {
+    id: "rel",
+    name: "People",
+    type: ColumnType.Relation,
+    relation: { documentId: "d", databaseId: "db" },
+  };
+  it("filters by a linked row", () => {
+    const rule = {
+      columnId: "rel",
+      operator: "contains" as const,
+      value: "p1",
+    };
+    expect(matchesFilter(relation, ["p1", "p2"], rule)).toBe(true);
+    expect(matchesFilter(relation, ["p2"], rule)).toBe(false);
+    expect(
+      matchesFilter(relation, ["p2"], { ...rule, operator: "not_contains" })
+    ).toBe(true);
+  });
+
+  it("sorts by the titles of linked rows", () => {
+    const rows = [
+      {
+        id: "a",
+        cells: { rel: ["x"] },
+        links: { rel: [{ id: "x", title: "Яна" }] },
+      },
+      {
+        id: "b",
+        cells: { rel: ["y"] },
+        links: { rel: [{ id: "y", title: "Анна" }] },
+      },
+    ];
+    const view: View = {
+      id: "v",
+      name: "V",
+      type: ViewType.Table,
+      sort: [{ columnId: "rel", direction: "asc" }],
+      filters: [],
+      hidden: [],
+    };
+    expect(
+      rowsForView({ columns: [relation], rows }, view).map((r) => r.id)
+    ).toEqual(["b", "a"]);
+  });
+});
+
+describe("new rows", () => {
+  it("get values that match the filters of the view", () => {
+    const cells = cellsForFilters(
+      [name, status, tags, { id: "ok", name: "Ok", type: ColumnType.Checkbox }],
+      [
+        { columnId: "st", operator: "is", value: "todo" },
+        { columnId: "tags", operator: "contains", value: "vip" },
+        { columnId: "ok", operator: "checked" },
+        { columnId: "name", operator: "is_empty" },
+      ]
+    );
+    expect(cells).toEqual({ st: "todo", tags: ["vip"], ok: true });
+  });
+
+  it("get the next auto number", () => {
+    expect(
+      nextAutoNumber(
+        [{ cells: { n: 3 } }, { cells: { n: 7 } }, { cells: {} }],
+        "n"
+      )
+    ).toBe(8);
+    expect(nextAutoNumber([], "n")).toBe(1);
+  });
+
+  it("keep number formats and auto number prefixes in normalization", () => {
+    const data = normalizeDatabase({
+      columns: [
+        {
+          id: "a",
+          name: "A",
+          type: "number",
+          numberFormat: "ruble",
+          showAs: "bar",
+          max: 50,
+        },
+        { id: "b", name: "B", type: "auto_number", prefix: "TASK-" },
+        { id: "c", name: "C", type: "number", numberFormat: "bitcoin" },
+      ],
+      views: [{ id: "v", type: "table", newRowsFirst: true }],
+    });
+    expect(data.columns[0]).toMatchObject({
+      numberFormat: "ruble",
+      showAs: "bar",
+      max: 50,
+    });
+    expect(data.columns[1]).toMatchObject({
+      type: "auto_number",
+      prefix: "TASK-",
+    });
+    expect(data.columns[2].numberFormat).toBeUndefined();
+    expect(data.views[0].newRowsFirst).toBe(true);
+    expect(displayValue(data.columns[1], 12)).toBe("TASK-12");
   });
 });

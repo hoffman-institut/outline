@@ -14,6 +14,7 @@ import {
   BulletedListIcon,
   GoToIcon,
   MathIcon,
+  OrderedListIcon,
   ReturnIcon,
   SummaryIcon,
   KeyboardIcon,
@@ -29,6 +30,7 @@ import styled from "styled-components";
 import type {
   CellValue,
   Column,
+  NumberFormat,
   SelectOption,
 } from "@shared/editor/lib/database";
 import {
@@ -37,6 +39,7 @@ import {
   moveColumn,
   newId,
   nextOptionColor,
+  numberFormats,
   optionNamesFor,
 } from "@shared/editor/lib/database";
 import { calculatedTypes } from "@shared/editor/lib/databaseCompute";
@@ -50,6 +53,7 @@ import {
   MenuDivider,
   MenuLabel,
   MenuRow,
+  Select,
   TextInput,
 } from "./components";
 import { useDatabase, useUpdateView } from "./context";
@@ -123,6 +127,11 @@ export function useColumnTypes() {
         type: ColumnType.Rollup,
         label: t("Rollup"),
         icon: <SummaryIcon size={18} />,
+      },
+      {
+        type: ColumnType.AutoNumber,
+        label: t("Auto number"),
+        icon: <OrderedListIcon size={18} />,
       },
     ],
     [t]
@@ -200,6 +209,15 @@ export function ColumnMenu({
           const { [column.id]: _removed, ...rest } = cells;
           return rest;
         }
+      );
+      return;
+    }
+    if (type === ColumnType.AutoNumber) {
+      // Existing rows are numbered in their order, new rows get the next one.
+      let number = 0;
+      setColumns(
+        data.columns.map((c) => (c.id === column.id ? next : c)),
+        (cells) => ({ ...cells, [column.id]: ++number })
       );
       return;
     }
@@ -343,6 +361,12 @@ export function ColumnMenu({
         <BacklinkEditor column={column} />
       )}
       {column.type === ColumnType.Rollup && <RollupEditor column={column} />}
+      {valueType === ColumnType.Number && (
+        <NumberFormatEditor column={column} />
+      )}
+      {column.type === ColumnType.AutoNumber && (
+        <PrefixEditor column={column} />
+      )}
       <MenuDivider />
       {valueType === ColumnType.Date && (
         <MenuRow type="button" onClick={() => sort("asc", true)}>
@@ -423,6 +447,104 @@ export function ColumnMenu({
         </MenuRow>
       )}
     </Body>
+  );
+}
+
+/** Display format of a number column (or a formula, a rollup with numbers). */
+function NumberFormatEditor({ column }: { column: Column }) {
+  const { t } = useTranslation();
+  const { data, mutator } = useDatabase();
+  const labels: Record<NumberFormat, string> = {
+    plain: t("As typed"),
+    grouped: t("With thousands separators"),
+    ruble: t("Rubles"),
+    dollar: t("Dollars"),
+    euro: t("Euros"),
+    percent: t("Percent"),
+  };
+  const save = (patch: Pick<Column, "numberFormat" | "showAs" | "max">) =>
+    mutator.setColumns(
+      data.columns.map((c) => {
+        if (c.id !== column.id) {
+          return c;
+        }
+        // Attributes are synced as JSON, so drop keys instead of undefined.
+        const next: Column = { ...c, ...patch };
+        if (!next.numberFormat) {
+          delete next.numberFormat;
+        }
+        if (!next.showAs) {
+          delete next.showAs;
+        }
+        return next;
+      })
+    );
+  return (
+    <>
+      <MenuLabel>{t("Number format")}</MenuLabel>
+      <Select
+        value={column.numberFormat ?? "plain"}
+        onChange={(event) => {
+          const value = event.target.value as NumberFormat;
+          save({ numberFormat: value === "plain" ? undefined : value });
+        }}
+      >
+        {numberFormats.map((format) => (
+          <option key={format} value={format}>
+            {labels[format]}
+          </option>
+        ))}
+      </Select>
+      {column.type === ColumnType.Number && (
+        <BarRow>
+          <input
+            type="checkbox"
+            checked={column.showAs === "bar"}
+            onChange={(event) =>
+              save({ showAs: event.target.checked ? "bar" : undefined })
+            }
+          />
+          {t("Show as a bar, maximum")}
+          <TextInput
+            type="number"
+            min={1}
+            disabled={column.showAs !== "bar"}
+            defaultValue={column.max ?? 100}
+            onBlur={(event) => {
+              const max = Number(event.target.value);
+              if (max > 0 && max !== (column.max ?? 100)) {
+                save({ max });
+              }
+            }}
+          />
+        </BarRow>
+      )}
+    </>
+  );
+}
+
+/** Text before the numbers of an auto number column, e.g. "TASK-". */
+function PrefixEditor({ column }: { column: Column }) {
+  const { t } = useTranslation();
+  const { data, mutator } = useDatabase();
+  return (
+    <>
+      <MenuLabel>{t("Prefix")}</MenuLabel>
+      <TextInput
+        placeholder="TASK-"
+        defaultValue={column.prefix ?? ""}
+        onBlur={(event) => {
+          const prefix = event.target.value;
+          if (prefix !== (column.prefix ?? "")) {
+            mutator.setColumns(
+              data.columns.map((c) =>
+                c.id === column.id ? { ...c, prefix } : c
+              )
+            );
+          }
+        }}
+      />
+    </>
   );
 }
 
@@ -549,6 +671,18 @@ const Body = styled.div`
   flex-direction: column;
   gap: 2px;
   padding: 8px;
+`;
+
+const BarRow = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 14px;
+
+  input[type="number"] {
+    width: 72px;
+  }
 `;
 
 const OptionEdit = styled.div`

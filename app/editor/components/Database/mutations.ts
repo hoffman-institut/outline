@@ -2,7 +2,7 @@ import type { Node as ProsemirrorNode } from "prosemirror-model";
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import type { CellValue, Column, View } from "@shared/editor/lib/database";
-import { newId } from "@shared/editor/lib/database";
+import { ColumnType, newId, nextAutoNumber } from "@shared/editor/lib/database";
 
 type Located = { pos: number; node: ProsemirrorNode };
 
@@ -35,6 +35,20 @@ export class DatabaseMutator {
       }
     });
     return found;
+  }
+
+  /** Cells of a new row with the next numbers of auto number columns. */
+  private numbered(db: Located, cells: Record<string, CellValue>) {
+    const columns = (db.node.attrs.columns ?? []) as Column[];
+    const rows: { cells: Record<string, CellValue> }[] = [];
+    db.node.forEach((child) => rows.push({ cells: child.attrs.cells ?? {} }));
+    const result = { ...cells };
+    for (const column of columns) {
+      if (column.type === ColumnType.AutoNumber) {
+        result[column.id] = nextAutoNumber(rows, column.id);
+      }
+    }
+    return result;
   }
 
   private dispatch(build: (tr: Transaction, db: Located) => void) {
@@ -101,7 +115,7 @@ export class DatabaseMutator {
     this.dispatch((tr, db) => {
       const row = this.view.state.schema.nodes.database_row.create({
         id,
-        cells,
+        cells: this.numbered(db, cells),
       });
       const before = beforeRowId ? this.findRow(db, beforeRowId) : undefined;
       tr.insert(before ? before.pos : db.pos + db.node.nodeSize - 1, row);
@@ -124,7 +138,7 @@ export class DatabaseMutator {
       if (row) {
         const copy = this.view.state.schema.nodes.database_row.create({
           id: newId(),
-          cells: row.node.attrs.cells,
+          cells: this.numbered(db, row.node.attrs.cells ?? {}),
         });
         tr.insert(row.pos + row.node.nodeSize, copy);
       }
