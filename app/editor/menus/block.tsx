@@ -156,14 +156,16 @@ export default function blockMenuItems(
       icon: <DatabaseIcon />,
       keywords:
         "database board kanban calendar tags properties база таблица доска канбан календарь",
-      attrs: () =>
+      // The database command takes structured data (columns, views, rows),
+      // which the menu item type only describes as primitives.
+      attrs: (() =>
         createDefaultDatabase({
           title: t("Untitled database"),
           name: t("Name", { context: "database" }),
           tags: t("Tags"),
           date: t("Date"),
           view: t("Table"),
-        }),
+        })) as unknown as MenuItem["attrs"],
     },
     {
       name: "blockquote",

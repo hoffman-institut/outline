@@ -46,7 +46,7 @@ export function useColumnTypes() {
       { type: ColumnType.MultiSelect, label: t("Multi-select"), icon: <BulletedListIcon size={18} /> },
       { type: ColumnType.Date, label: t("Date"), icon: <CalendarIcon size={18} /> },
       { type: ColumnType.Person, label: t("Person"), icon: <UserIcon size={18} /> },
-      { type: ColumnType.Checkbox, label: t("Checkbox"), icon: <CheckboxIcon size={18} /> },
+      { type: ColumnType.Checkbox, label: t("Checkbox"), icon: <CheckboxIcon checked size={18} /> },
       { type: ColumnType.Url, label: t("URL"), icon: <LinkIcon size={18} /> },
       { type: ColumnType.Email, label: t("Email"), icon: <EmailIcon size={18} /> },
       { type: ColumnType.Phone, label: t("Phone"), icon: <KeyboardIcon size={18} /> },
