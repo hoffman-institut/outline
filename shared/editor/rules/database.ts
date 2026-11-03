@@ -4,6 +4,9 @@ import { newId, normalizeDatabase } from "../lib/database";
 /** Info string of the fenced block that stores a database in markdown. */
 export const DATABASE_FENCE = "hoffman-database";
 
+/** Info string of the fenced block of a linked database (its own views). */
+export const DATABASE_VIEW_FENCE = "hoffman-database-view";
+
 /**
  * Turns ```hoffman-database fences (JSON) into database_open / database_row /
  * database_close tokens, so that markdown from the API, MCP or imports
@@ -14,7 +17,22 @@ export default function database(md: MarkdownIt): void {
     const tokens = state.tokens;
     for (let i = tokens.length - 1; i >= 0; i--) {
       const fence = tokens[i];
-      if (fence.type !== "fence" || fence.info.trim() !== DATABASE_FENCE) {
+      if (fence.type !== "fence") {
+        continue;
+      }
+      if (fence.info.trim() === DATABASE_VIEW_FENCE) {
+        try {
+          const token = new state.Token("database_view", "div", 0);
+          token.block = true;
+          token.map = fence.map;
+          token.meta = JSON.parse(fence.content);
+          tokens.splice(i, 1, token);
+        } catch {
+          // Not valid JSON: keep it as a regular code block.
+        }
+        continue;
+      }
+      if (fence.info.trim() !== DATABASE_FENCE) {
         continue;
       }
 

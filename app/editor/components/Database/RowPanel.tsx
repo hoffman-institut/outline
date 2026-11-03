@@ -29,7 +29,7 @@ export function RowPanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const { computed, editable, mutator, createOption } = useDatabase();
+  const { computed, editable, mutator, createOption, rowPages } = useDatabase();
   const { documents } = useStores();
   const { document } = useDocumentContext();
   const [creating, setCreating] = React.useState(false);
@@ -81,6 +81,7 @@ export function RowPanel({
           </Link>
         ) : (
           editable &&
+          rowPages &&
           document && (
             <SmallButton type="button" disabled={creating} onClick={createPage}>
               <NewDocumentIcon size={18} />

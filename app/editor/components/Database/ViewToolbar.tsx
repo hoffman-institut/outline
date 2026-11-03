@@ -981,7 +981,48 @@ function CreateButton({
 
 function DatabaseMenu() {
   const { t } = useTranslation();
-  const { data, mutator } = useDatabase();
+  const {
+    data,
+    mutator,
+    documentId,
+    databaseId,
+    schemaEditable,
+    isLinkedView,
+  } = useDatabase();
+  const hasSubitems = data.columns.some((c) => c.subitems);
+
+  // Sub-items: a relation to this database (the parent) and its backlink
+  // (the sub-items, usable in rollups), hidden in the views.
+  const enableSubitems = () => {
+    if (!documentId) {
+      return;
+    }
+    const ref = { documentId, databaseId };
+    const parentId = newId();
+    const childrenId = newId();
+    mutator.setColumns([
+      ...data.columns,
+      {
+        id: parentId,
+        name: t("Parent item"),
+        type: ColumnType.Relation,
+        relation: ref,
+        subitems: true,
+      },
+      {
+        id: childrenId,
+        name: t("Sub-items"),
+        type: ColumnType.Backlink,
+        relation: { ...ref, columnId: parentId },
+      },
+    ]);
+    mutator.setAttrs({
+      views: data.views.map((v) => ({
+        ...v,
+        hidden: [...v.hidden, parentId, childrenId],
+      })),
+    });
+  };
   const [confirm, setConfirm] = React.useState(false);
   const templates = data.templates ?? [];
   const saveTemplates = (next: RowTemplate[]) =>
@@ -995,39 +1036,49 @@ function DatabaseMenu() {
       </PopoverTrigger>
       <PopoverContent width={240} shrink align="end" onClick={stop}>
         <PopoverBody>
-          <MenuLabel>{t("Templates")}</MenuLabel>
-          {templates.length === 0 && (
-            <Hint>{t("Save a row as a template from its menu")}</Hint>
-          )}
-          {templates.map((template) => (
-            <RuleRow key={template.id}>
-              <TextInput
-                defaultValue={template.name}
-                onBlur={(event) => {
-                  const name = event.target.value.trim();
-                  if (name && name !== template.name) {
-                    saveTemplates(
-                      templates.map((item) =>
-                        item.id === template.id ? { ...item, name } : item
+          {schemaEditable && (
+            <>
+              <MenuLabel>{t("Templates")}</MenuLabel>
+              {templates.length === 0 && (
+                <Hint>{t("Save a row as a template from its menu")}</Hint>
+              )}
+              {templates.map((template) => (
+                <RuleRow key={template.id}>
+                  <TextInput
+                    defaultValue={template.name}
+                    onBlur={(event) => {
+                      const name = event.target.value.trim();
+                      if (name && name !== template.name) {
+                        saveTemplates(
+                          templates.map((item) =>
+                            item.id === template.id ? { ...item, name } : item
+                          )
+                        );
+                      }
+                    }}
+                  />
+                  <IconButton
+                    type="button"
+                    aria-label={t("Delete")}
+                    onClick={() =>
+                      saveTemplates(
+                        templates.filter((item) => item.id !== template.id)
                       )
-                    );
-                  }
-                }}
-              />
-              <IconButton
-                type="button"
-                aria-label={t("Delete")}
-                onClick={() =>
-                  saveTemplates(
-                    templates.filter((item) => item.id !== template.id)
-                  )
-                }
-              >
-                <CloseIcon size={18} />
-              </IconButton>
-            </RuleRow>
-          ))}
+                    }
+                  >
+                    <CloseIcon size={18} />
+                  </IconButton>
+                </RuleRow>
+              ))}
+            </>
+          )}
           <MenuDivider />
+          {!hasSubitems && documentId && schemaEditable && (
+            <MenuRow type="button" onClick={enableSubitems}>
+              <PlusIcon size={18} />
+              {t("Enable sub-items")}
+            </MenuRow>
+          )}
           <MenuRow
             type="button"
             $danger
@@ -1036,7 +1087,11 @@ function DatabaseMenu() {
             }
           >
             <TrashIcon size={18} />
-            {confirm ? t("Click again to delete") : t("Delete database")}
+            {confirm
+              ? t("Click again to delete")
+              : isLinkedView
+                ? t("Remove linked database")
+                : t("Delete database")}
           </MenuRow>
         </PopoverBody>
       </PopoverContent>
@@ -1047,7 +1102,7 @@ function DatabaseMenu() {
 /** Title of the database, editable in place. */
 export function DatabaseTitle() {
   const { t } = useTranslation();
-  const { data, mutator, editable } = useDatabase();
+  const { data, mutator, schemaEditable: editable } = useDatabase();
   const [value, setValue] = React.useState(data.title);
   React.useEffect(() => setValue(data.title), [data.title]);
   const commit = () => {

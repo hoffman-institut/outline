@@ -4,18 +4,47 @@ import type { EditorView } from "prosemirror-view";
 import type {
   CellValue,
   Column,
+  DatabaseRef,
   RowTemplate,
   View,
 } from "@shared/editor/lib/database";
 import { ColumnType, newId, nextAutoNumber } from "@shared/editor/lib/database";
+import { client } from "~/utils/ApiClient";
+import { databasePos } from "./linked";
 
 type Located = { pos: number; node: ProsemirrorNode };
+
+type Cells = Record<string, CellValue>;
+
+/** Changes of a database, as the views make them. */
+export interface Mutator {
+  setAttrs(
+    patch: Partial<{
+      title: string;
+      columns: Column[];
+      views: View[];
+      templates: RowTemplate[];
+    }>
+  ): void;
+  setView(view: View): void;
+  setCells(rowId: string, cells: Cells): void;
+  setRowDoc(rowId: string, docId: string | null): void;
+  addRow(cells?: Cells, beforeRowId?: string): string;
+  deleteRow(rowId: string): void;
+  duplicateRow(rowId: string): void;
+  moveRow(rowId: string, toIndex: number): void;
+  setColumns(
+    columns: Column[],
+    transform?: (cells: Cells, rowId: string) => Cells
+  ): void;
+  deleteDatabase(): void;
+}
 
 /**
  * Applies changes to one database block as ProseMirror transactions, so they
  * go through undo history and collaborative editing like any other edit.
  */
-export class DatabaseMutator {
+export class DatabaseMutator implements Mutator {
   constructor(
     private view: EditorView,
     private getPos: () => number | undefined
@@ -207,5 +236,138 @@ export class DatabaseMutator {
     this.dispatch((tr, db) => {
       tr.delete(db.pos, db.pos + db.node.nodeSize);
     });
+  }
+}
+
+/**
+ * Changes made in a linked database. Views live in the linked block. Data
+ * goes to the source block: through the editor when it is in this document,
+ * through the API (rows only) when it is in another one.
+ */
+export class LinkedMutator implements Mutator {
+  constructor(
+    private view: EditorView,
+    private getPos: () => number | undefined,
+    private source: DatabaseRef,
+    /** Whether the source block is in the document of the editor. */
+    private local: boolean,
+    /** Cells of a row of the source, for duplicates through the API. */
+    private rowCells: (rowId: string) => Cells | undefined,
+    /** Called after an API change, to reload the source. */
+    private onChange: () => void
+  ) {}
+
+  private sourceMutator() {
+    return new DatabaseMutator(this.view, () =>
+      databasePos(this.view.state.doc, this.source.databaseId)
+    );
+  }
+
+  private own() {
+    const pos = this.getPos();
+    const node = pos === undefined ? null : this.view.state.doc.nodeAt(pos);
+    return pos !== undefined && node?.type.name === "database_view"
+      ? { pos, node }
+      : undefined;
+  }
+
+  private setOwn(attrs: Record<string, unknown>) {
+    const own = this.own();
+    if (own) {
+      this.view.dispatch(
+        this.view.state.tr.setNodeMarkup(own.pos, undefined, {
+          ...own.node.attrs,
+          ...attrs,
+        })
+      );
+    }
+  }
+
+  private api(path: string, body: Record<string, unknown>) {
+    void client
+      .post(path, { ...this.source, ...body })
+      .finally(() => this.onChange());
+  }
+
+  setAttrs(patch: Parameters<Mutator["setAttrs"]>[0]) {
+    const { views, ...rest } = patch;
+    if (views) {
+      this.setOwn({ views });
+    }
+    if (this.local && Object.keys(rest).length) {
+      this.sourceMutator().setAttrs(rest);
+    }
+  }
+
+  setView(view: View) {
+    const views = (this.own()?.node.attrs.views ?? []) as View[];
+    this.setOwn({ views: views.map((v) => (v.id === view.id ? view : v)) });
+  }
+
+  setCells(rowId: string, cells: Cells) {
+    if (this.local) {
+      this.sourceMutator().setCells(rowId, cells);
+    } else {
+      this.api("/databases.updateRow", { rowId, cells });
+    }
+  }
+
+  setRowDoc(rowId: string, docId: string | null) {
+    if (this.local) {
+      this.sourceMutator().setRowDoc(rowId, docId);
+    }
+  }
+
+  addRow(cells: Cells = {}, beforeRowId?: string): string {
+    if (this.local) {
+      return this.sourceMutator().addRow(cells, beforeRowId);
+    }
+    const rowId = newId();
+    this.api("/databases.addRow", { rowId, cells });
+    return rowId;
+  }
+
+  deleteRow(rowId: string) {
+    if (this.local) {
+      this.sourceMutator().deleteRow(rowId);
+    } else {
+      this.api("/databases.deleteRow", { rowId });
+    }
+  }
+
+  duplicateRow(rowId: string) {
+    if (this.local) {
+      this.sourceMutator().duplicateRow(rowId);
+    } else {
+      this.api("/databases.addRow", {
+        rowId: newId(),
+        cells: this.rowCells(rowId) ?? {},
+      });
+    }
+  }
+
+  moveRow(rowId: string, toIndex: number) {
+    if (this.local) {
+      this.sourceMutator().moveRow(rowId, toIndex);
+    }
+  }
+
+  setColumns(
+    columns: Column[],
+    transform?: (cells: Cells, rowId: string) => Cells
+  ) {
+    if (this.local) {
+      this.sourceMutator().setColumns(columns, transform);
+    }
+  }
+
+  /** Removes the linked block; the source database stays. */
+  deleteDatabase() {
+    const own = this.own();
+    if (own) {
+      this.view.dispatch(
+        this.view.state.tr.delete(own.pos, own.pos + own.node.nodeSize)
+      );
+    }
   }
 }

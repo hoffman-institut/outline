@@ -72,3 +72,38 @@ describe("Database markdown", () => {
     expect(text).toContain("1990-11-10");
   });
 });
+
+describe("Linked database markdown", () => {
+  it("survives a markdown round trip with its own views", () => {
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.database_view.create({
+        id: "lv1",
+        source: { documentId: "doc-1", databaseId: "db1" },
+        views,
+      }),
+      schema.nodes.paragraph.create(null, schema.text("После")),
+    ]);
+    const markdown = serializer.serialize(doc);
+    expect(markdown).toContain("```hoffman-database-view");
+
+    const parsed = parser.parse(markdown);
+    const linked = parsed.child(0);
+    expect(linked.type.name).toBe("database_view");
+    expect(linked.attrs.id).toBe("lv1");
+    expect(linked.attrs.source).toEqual({
+      documentId: "doc-1",
+      databaseId: "db1",
+    });
+    expect(linked.attrs.views[0].sort).toEqual(views[0].sort);
+    expect(parsed.child(1).textContent).toBe("После");
+  });
+
+  it("keeps a block without a source", () => {
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.database_view.create({ id: "lv2", source: null, views: [] }),
+    ]);
+    const parsed = parser.parse(serializer.serialize(doc));
+    expect(parsed.child(0).type.name).toBe("database_view");
+    expect(parsed.child(0).attrs.source).toBeNull();
+  });
+});

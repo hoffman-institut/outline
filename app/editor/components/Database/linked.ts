@@ -13,6 +13,8 @@ export type FoundDatabase = DatabaseData & { id: string };
 type LoadedDocument = {
   title: string;
   url: string;
+  /** Whether the user may edit the document (rows of its databases). */
+  canUpdate: boolean;
   databases: Map<string, FoundDatabase>;
   loadedAt: number;
 };
@@ -140,9 +142,13 @@ export function loadDocument(documentId: string, force = false) {
       // API version 2+ wraps the document, version 3+ sends its content as
       // ProseMirror JSON in "data".
       const doc = res.data.document ?? res.data;
+      const policy = (
+        res.policies as { id: string; abilities: Record<string, boolean> }[]
+      )?.find((p) => p.id === doc.id);
       entry.loaded = {
         title: doc.title,
         url: doc.url,
+        canUpdate: !!policy?.abilities.update,
         databases: databasesInJSON(doc.data),
         loadedAt: Date.now(),
       };

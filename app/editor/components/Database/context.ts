@@ -9,21 +9,32 @@ import type {
 } from "@shared/editor/lib/database";
 import type { ComputedDatabase } from "@shared/editor/lib/databaseCompute";
 import type { LinkedDatabases } from "./linked";
-import type { DatabaseMutator } from "./mutations";
+import type { Mutator } from "./mutations";
 
 export type DatabaseContextValue = {
   /** Stored data: the only source for changes. */
   data: DatabaseData;
   /** Data with calculated columns, for display, sorting and filters. */
   computed: ComputedDatabase;
-  /** Id of this database block and of its document. */
+  /**
+   * The database: the block and its document. For a linked database these
+   * are the source, which forms, relations and backlinks refer to.
+   */
   databaseId: string;
   documentId?: string;
+  /** The document open in the editor. */
+  editorDocumentId?: string;
+  /** Whether columns, title and templates can be changed. */
+  schemaEditable: boolean;
+  /** Whether rows can get pages (the source is in this document). */
+  rowPages: boolean;
+  /** Shown in a linked database: changes go to its source. */
+  isLinkedView: boolean;
   /** Databases that relations of this block link to. */
   linked: LinkedDatabases;
   editorView: EditorView;
   view: View;
-  mutator: DatabaseMutator;
+  mutator: Mutator;
   editable: boolean;
   /** Adds an option to a select column and returns it. */
   createOption: (column: Column, name: string) => SelectOption;

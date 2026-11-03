@@ -2098,5 +2098,11 @@
   "Upload failed": "Upload failed",
   "Gallery": "Gallery",
   "Cover": "Cover",
-  "First files column": "First files column"
+  "First files column": "First files column",
+  "Add sub-item": "Add sub-item",
+  "Sub-items": "Sub-items",
+  "Parent item": "Parent item",
+  "Enable sub-items": "Enable sub-items",
+  "Linked database: choose the source": "Linked database: choose the source",
+  "Remove linked database": "Remove linked database"
 }

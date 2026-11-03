@@ -131,6 +131,11 @@ export type Column = {
   /** Auto number columns: text before the number, e.g. "TASK-". */
   prefix?: string;
   /**
+   * Relation to the same database that makes rows sub-items of a parent
+   * row; the table shows them as a tree.
+   */
+  subitems?: boolean;
+  /**
    * Date columns: values may have a time, stored as an instant in UTC
    * ("2026-11-04T07:30:00.000Z") and shown in the viewer's time zone.
    * Dates without a time ("2026-11-04") are the same day everywhere.
@@ -1075,6 +1080,50 @@ export function rowsForView<R extends Row>(
     .map(({ row }) => row);
 }
 
+/** A row in a tree of sub-items. */
+export type TreeRow<R> = { row: R; depth: number; childCount: number };
+
+/**
+ * Orders rows as a tree by a sub-items relation: each row is followed by its
+ * sub-items, in the order of the view. A row whose parent is not shown (or
+ * is part of a loop) is shown at the top level.
+ *
+ * @param rows rows in the order of the view.
+ * @param columnId the sub-items relation (its first id is the parent).
+ * @returns rows with their depth and number of sub-items.
+ */
+export function treeRows<R extends Row>(
+  rows: R[],
+  columnId: string
+): TreeRow<R>[] {
+  const ids = new Set(rows.map((row) => row.id));
+  const children = new Map<string, R[]>();
+  const roots: R[] = [];
+  for (const row of rows) {
+    const value = row.cells[columnId];
+    const parent = Array.isArray(value) ? value[0] : undefined;
+    if (parent && parent !== row.id && ids.has(parent)) {
+      children.set(parent, [...(children.get(parent) ?? []), row]);
+    } else {
+      roots.push(row);
+    }
+  }
+  const result: TreeRow<R>[] = [];
+  const seen = new Set<string>();
+  const visit = (row: R, depth: number) => {
+    if (seen.has(row.id)) {
+      return;
+    }
+    seen.add(row.id);
+    const kids = children.get(row.id) ?? [];
+    result.push({ row, depth, childCount: kids.length });
+    kids.forEach((kid) => visit(kid, depth + 1));
+  };
+  roots.forEach((row) => visit(row, 0));
+  rows.forEach((row) => visit(row, 0));
+  return result;
+}
+
 /** A group of rows of a grouped table. */
 export type RowGroup<R> = {
   /** Option id, date period, value text; "" for rows without a value. */
@@ -1422,6 +1471,7 @@ export function normalizeDatabase(input: unknown): DatabaseData {
           ...(typeof c.max === "number" && c.max > 0 ? { max: c.max } : {}),
           ...(typeof c.prefix === "string" ? { prefix: c.prefix } : {}),
           ...(c.withTime ? { withTime: true } : {}),
+          ...(c.subitems ? { subitems: true } : {}),
           ...(c.rollup &&
           typeof c.rollup.columnId === "string" &&
           typeof c.rollup.targetColumnId === "string" &&

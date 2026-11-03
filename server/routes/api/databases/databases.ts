@@ -293,7 +293,7 @@ router.post(
   validate(T.DatabasesAddRowSchema),
   async (ctx: APIContext<T.DatabasesAddRowReq>) => {
     const { documentId, databaseId } = ctx.input.body;
-    const rowId = uuidv4();
+    const rowId = ctx.input.body.rowId ?? uuidv4();
     await addRow(ctx, rowId);
 
     // An open editor may save its own older state between our save and the
@@ -358,6 +358,44 @@ router.post(
       { ...ctx.context, transaction }
     );
     ctx.body = { data: { rowId } };
+  }
+);
+
+router.post(
+  "databases.deleteRow",
+  rateLimiter(RateLimiterStrategy.OneHundredPerMinute),
+  auth(),
+  validate(T.DatabasesDeleteRowSchema),
+  transaction(),
+  async (ctx: APIContext<T.DatabasesDeleteRowReq>) => {
+    const { documentId, databaseId, rowId } = ctx.input.body;
+    const { user } = ctx.state.auth;
+    const { transaction } = ctx.state;
+    const document = await loadForChange(user, documentId, transaction);
+    authorize(user, "update", document);
+    const updated = editDatabase(
+      DocumentHelper.toState(document),
+      databaseId,
+      ({ node, pos }, tr) => {
+        // Every copy of the row goes, see the check in databases.addRow.
+        const found: { from: number; to: number }[] = [];
+        node.forEach((child, offset) => {
+          if (child.attrs.id === rowId) {
+            const from = pos + 1 + offset;
+            found.push({ from, to: from + child.nodeSize });
+          }
+        });
+        if (!found.length) {
+          throw NotFoundError("Row not found");
+        }
+        found.reverse().forEach(({ from, to }) => tr.delete(from, to));
+      }
+    );
+    await document.update(
+      { state: updated.state, content: updated.content },
+      { ...ctx.context, transaction }
+    );
+    ctx.body = { success: true };
   }
 );
 

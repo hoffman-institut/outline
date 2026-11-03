@@ -18,6 +18,7 @@ import {
   formatNumber,
   groupRows,
   isEmptyValue,
+  treeRows,
   moveColumn,
   newId,
   rowDropIndex,
@@ -70,8 +71,16 @@ export function TableView({
   focusRowId?: string;
 }) {
   const { t } = useTranslation();
-  const { data, computed, view, editable, mutator, addRow, userName } =
-    useDatabase();
+  const {
+    data,
+    computed,
+    view,
+    editable,
+    schemaEditable,
+    mutator,
+    addRow,
+    userName,
+  } = useDatabase();
   const columns = computed.columns.filter((c) => !view.hidden.includes(c.id));
   const groupColumn = computed.columns.find((c) => c.id === view.groupBy);
   const groups = groupColumn
@@ -87,8 +96,34 @@ export function TableView({
       }
       return next;
     });
+  // Sub-items are shown under their parents, expanded unless collapsed.
+  const subColumn = data.columns.find(
+    (c) => c.subitems && c.type === ColumnType.Relation
+  );
+  const tree = subColumn && !groups ? treeRows(rows, subColumn.id) : undefined;
+  const [folded, setFolded] = React.useState<Set<string>>(new Set());
+  const shownTree = tree?.filter((item, index, list) => {
+    // Hide rows below a folded ancestor.
+    for (let i = index - 1, depth = item.depth; i >= 0 && depth > 0; i--) {
+      if (list[i].depth < depth) {
+        if (folded.has(list[i].row.id)) {
+          return false;
+        }
+        depth = list[i].depth;
+      }
+    }
+    return true;
+  });
+  const toggleFold = (rowId: string) =>
+    setFolded((current) => {
+      const next = new Set(current);
+      if (!next.delete(rowId)) {
+        next.add(rowId);
+      }
+      return next;
+    });
   // Manual order only makes sense when the view is not sorted or grouped.
-  const reorderable = editable && view.sort.length === 0 && !groupColumn;
+  const reorderable = schemaEditable && view.sort.length === 0 && !groupColumn;
   const [drop, setDrop] = React.useState<{
     rowId: string;
     after: boolean;
@@ -174,18 +209,24 @@ export function TableView({
             ))}
             {editable && (
               <th>
-                <AddColumn
-                  type="button"
-                  aria-label={t("Add column")}
-                  onClick={() =>
-                    mutator.setColumns([
-                      ...data.columns,
-                      { id: newId(), name: t("Column"), type: ColumnType.Text },
-                    ])
-                  }
-                >
-                  <PlusIcon size={18} />
-                </AddColumn>
+                {schemaEditable && (
+                  <AddColumn
+                    type="button"
+                    aria-label={t("Add column")}
+                    onClick={() =>
+                      mutator.setColumns([
+                        ...data.columns,
+                        {
+                          id: newId(),
+                          name: t("Column"),
+                          type: ColumnType.Text,
+                        },
+                      ])
+                    }
+                  >
+                    <PlusIcon size={18} />
+                  </AddColumn>
+                )}
               </th>
             )}
           </tr>
@@ -224,10 +265,17 @@ export function TableView({
             </React.Fragment>
           ))}
           {!groups &&
-            rows.map((row) => (
+            (
+              shownTree ?? rows.map((row) => ({ row, depth: 0, childCount: 0 }))
+            ).map(({ row, depth, childCount }) => (
               <TableRow
                 key={row.id}
                 row={row}
+                depth={depth}
+                childCount={childCount}
+                folded={folded.has(row.id)}
+                onToggle={() => toggleFold(row.id)}
+                subColumnId={subColumn?.id}
                 columns={columns}
                 autoFocus={row.id === focusRowId}
                 reorderable={reorderable}
@@ -383,7 +431,7 @@ function HeaderCell({
   onResizeEnd: (width: number) => void;
   onFitWidth: () => void;
 }) {
-  const { editable, data, mutator } = useDatabase();
+  const { schemaEditable: editable, data, mutator } = useDatabase();
   const [open, setOpen] = React.useState(false);
   const resizing = React.useRef(false);
   // The menu edits the stored column (a formula, not its result type).
@@ -581,6 +629,11 @@ const ROW_DRAG = "text/x-database-row-order";
 
 function TableRow({
   row,
+  depth = 0,
+  childCount = 0,
+  folded,
+  onToggle,
+  subColumnId,
   columns,
   autoFocus,
   reorderable,
@@ -590,6 +643,13 @@ function TableRow({
   onDragEnd,
 }: {
   row: ComputedRow;
+  /** Level of a sub-item in the tree, 0 for top rows. */
+  depth?: number;
+  childCount?: number;
+  folded?: boolean;
+  onToggle?: () => void;
+  /** Sub-items relation, when the database has sub-items. */
+  subColumnId?: string;
   columns: ComputedColumn[];
   autoFocus?: boolean;
   reorderable: boolean;
@@ -599,8 +659,16 @@ function TableRow({
   onDragEnd: () => void;
 }) {
   const { t } = useTranslation();
-  const { data, editable, mutator, createOption, openRow, userName } =
-    useDatabase();
+  const {
+    data,
+    editable,
+    schemaEditable,
+    mutator,
+    createOption,
+    openRow,
+    userName,
+    addRow,
+  } = useDatabase();
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   // A template keeps the stored values of the row (not calculated ones) and
@@ -718,16 +786,30 @@ function TableRow({
                   <DuplicateIcon size={18} />
                   {t("Duplicate")}
                 </MenuRow>
-                <MenuRow
-                  type="button"
-                  onClick={() => {
-                    saveAsTemplate();
-                    setMenuOpen(false);
-                  }}
-                >
-                  <NewDocumentIcon size={18} />
-                  {t("Save as template")}
-                </MenuRow>
+                {schemaEditable && (
+                  <MenuRow
+                    type="button"
+                    onClick={() => {
+                      saveAsTemplate();
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <NewDocumentIcon size={18} />
+                    {t("Save as template")}
+                  </MenuRow>
+                )}
+                {subColumnId && (
+                  <MenuRow
+                    type="button"
+                    onClick={() => {
+                      addRow({ [subColumnId]: [row.id] });
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <PlusIcon size={18} />
+                    {t("Add sub-item")}
+                  </MenuRow>
+                )}
                 <MenuRow
                   type="button"
                   $danger
@@ -743,7 +825,31 @@ function TableRow({
       </td>
       {columns.map((column, index) => (
         <td key={column.id}>
-          {row.errors?.[column.id] ? (
+          {index === 0 && (depth > 0 || childCount > 0) ? (
+            <TreeCell style={{ paddingLeft: depth * 18 }}>
+              {childCount > 0 ? (
+                <Fold
+                  type="button"
+                  aria-label={t("Sub-items")}
+                  onClick={onToggle}
+                >
+                  {folded ? "▸" : "▾"}
+                </Fold>
+              ) : (
+                <FoldSpace />
+              )}
+              <Cell
+                column={column}
+                value={row.cells[column.id]}
+                links={row.links?.[column.id]}
+                editable={editable && !isComputed(column)}
+                onChange={(value) =>
+                  mutator.setCells(row.id, { [column.id]: value })
+                }
+                onCreateOption={(name) => createOption(column, name)}
+              />
+            </TreeCell>
+          ) : row.errors?.[column.id] ? (
             <CellError>{row.errors[column.id]}</CellError>
           ) : (
             <Cell
@@ -903,6 +1009,32 @@ const TotalButton = styled.button<{ $empty?: boolean }>`
   &[data-state="open"] {
     opacity: 1;
   }
+`;
+
+const TreeCell = styled.div`
+  display: flex;
+  align-items: flex-start;
+
+  > :last-child {
+    flex: 1;
+    min-width: 0;
+  }
+`;
+
+const Fold = styled.button`
+  flex-shrink: 0;
+  width: 18px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: ${s("textTertiary")};
+  cursor: pointer;
+`;
+
+const FoldSpace = styled.span`
+  flex-shrink: 0;
+  width: 18px;
 `;
 
 const GroupCell = styled.td`

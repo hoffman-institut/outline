@@ -26,6 +26,7 @@ import CodeFence from "./CodeFence";
 import Doc from "./Doc";
 import Database from "./Database";
 import DatabaseRow from "./DatabaseRow";
+import DatabaseViewNode from "./DatabaseViewNode";
 import Embed from "./Embed";
 import Emoji from "./Emoji";
 import HardBreak from "./HardBreak";
@@ -131,6 +132,7 @@ export const richExtensions: Nodes = [
   ToggleBlock,
   DatabaseRow,
   Database,
+  DatabaseViewNode,
   // Container type nodes should be last so that key handlers are registered for content inside
   // the container nodes first.
   ...listExtensions,

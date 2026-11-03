@@ -185,7 +185,7 @@ function FilesCell({ value, editable, onChange }: CellProps) {
 /** Rows of another database (or this one) linked to the row. */
 function RelationCell({ column, value, links, editable, onChange }: CellProps) {
   const { t } = useTranslation();
-  const { linked, editorView, documentId } = useDatabase();
+  const { linked, editorView, editorDocumentId } = useDatabase();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
@@ -236,7 +236,7 @@ function RelationCell({ column, value, links, editable, onChange }: CellProps) {
     setFailed(false);
     try {
       let rowId: string;
-      if (ref.documentId === documentId) {
+      if (ref.documentId === editorDocumentId) {
         rowId = new DatabaseMutator(editorView, () =>
           databasePos(editorView.state.doc, ref.databaseId)
         ).addRow(titleColumn ? { [titleColumn.id]: title } : {});
@@ -267,6 +267,12 @@ function RelationCell({ column, value, links, editable, onChange }: CellProps) {
     const existing = selectedIds.filter((id) =>
       candidates.some((row) => row.id === id)
     );
+    if (column.subitems) {
+      // A sub-item has one parent.
+      onChange(existing.includes(rowId) ? [] : [rowId]);
+      setOpen(false);
+      return;
+    }
     onChange(
       existing.includes(rowId)
         ? existing.filter((id) => id !== rowId)

@@ -9,6 +9,7 @@ import {
   formatDate,
   isImage,
   parseFiles,
+  treeRows,
   convertValue,
   formatNumber,
   groupRows,
@@ -660,5 +661,28 @@ describe("files", () => {
     expect(
       displayValue({ id: "f", name: "F", type: ColumnType.Files }, value)
     ).toBe("photo.jpg, act.pdf");
+  });
+});
+
+describe("treeRows", () => {
+  const rows: Row[] = [
+    { id: "child", cells: { p: ["root"] } },
+    { id: "root", cells: { p: [] } },
+    { id: "grandchild", cells: { p: ["child"] } },
+    { id: "orphan", cells: { p: ["hidden"] } },
+    { id: "loopA", cells: { p: ["loopB"] } },
+    { id: "loopB", cells: { p: ["loopA"] } },
+  ];
+  it("nests sub-items under their parents", () => {
+    expect(
+      treeRows(rows, "p").map((r) => [r.row.id, r.depth, r.childCount])
+    ).toEqual([
+      ["root", 0, 1],
+      ["child", 1, 1],
+      ["grandchild", 2, 0],
+      ["orphan", 0, 0],
+      ["loopA", 0, 1],
+      ["loopB", 1, 1],
+    ]);
   });
 });

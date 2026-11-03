@@ -2290,5 +2290,11 @@
   "Upload failed": "Не удалось загрузить",
   "Gallery": "Галерея",
   "Cover": "Обложка",
-  "First files column": "Первый столбец с файлами"
+  "First files column": "Первый столбец с файлами",
+  "Add sub-item": "Добавить подзадачу",
+  "Sub-items": "Подзадачи",
+  "Parent item": "Родительская задача",
+  "Enable sub-items": "Включить подзадачи",
+  "Linked database: choose the source": "Связанная база: выберите источник",
+  "Remove linked database": "Убрать связанную базу"
 }

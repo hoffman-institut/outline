@@ -1,3 +1,4 @@
+import type { EditorView } from "prosemirror-view";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -17,6 +18,7 @@ import {
   useTotalLabels,
 } from "./components";
 import { useDatabase } from "./context";
+import type { LinkedDatabases } from "./linked";
 import { databasesInDoc, loadDocument } from "./linked";
 
 const sameRef = (a?: DatabaseRef, b?: DatabaseRef) =>
@@ -24,30 +26,56 @@ const sameRef = (a?: DatabaseRef, b?: DatabaseRef) =>
 
 /** Finds a database by reference in this document or a loaded one. */
 function useFindDatabase() {
-  const { editorView, documentId, linked } = useDatabase();
+  const { editorView, editorDocumentId, linked } = useDatabase();
   return (ref?: DatabaseRef): DatabaseData | undefined => {
     if (!ref) {
       return undefined;
     }
-    return ref.documentId === documentId
+    return ref.documentId === editorDocumentId
       ? databasesInDoc(editorView.state.doc).get(ref.databaseId)
       : linked.document(ref.documentId)?.databases.get(ref.databaseId);
   };
+}
+
+/** Database picker of a database block. */
+function DatabasePicker(props: {
+  value?: DatabaseRef;
+  onChange: (ref: DatabaseRef) => void;
+}) {
+  const { editorView, editorDocumentId, databaseId, linked } = useDatabase();
+  return (
+    <DatabasePickerBase
+      {...props}
+      editorView={editorView}
+      documentId={editorDocumentId}
+      databaseId={databaseId}
+      linked={linked}
+    />
+  );
 }
 
 /**
  * Chooses a database: one of this document or of another document found by
  * its title.
  */
-function DatabasePicker({
+export function DatabasePickerBase({
   value,
   onChange,
+  editorView,
+  documentId,
+  databaseId,
+  linked,
 }: {
   value?: DatabaseRef;
   onChange: (ref: DatabaseRef) => void;
+  editorView: EditorView;
+  /** The document of the editor. */
+  documentId?: string;
+  /** The database being edited, marked as "this database". */
+  databaseId?: string;
+  linked: LinkedDatabases;
 }) {
   const { t } = useTranslation();
-  const { editorView, documentId, databaseId, linked } = useDatabase();
   const [query, setQuery] = React.useState("");
   const [found, setFound] = React.useState<{ id: string; title: string }[]>([]);
   const [otherId, setOtherId] = React.useState(

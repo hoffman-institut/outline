@@ -168,6 +168,13 @@ export default function blockMenuItems(
         })) as unknown as MenuItem["attrs"],
     },
     {
+      name: "database_view",
+      title: t("Linked database"),
+      icon: <DatabaseIcon />,
+      keywords:
+        "linked database view связанная база представление копия база данных",
+    },
+    {
       name: "blockquote",
       title: t("Quote"),
       icon: <BlockQuoteIcon />,
