@@ -8,9 +8,11 @@ import {
   nextOptionColor,
   rowsForView,
 } from "@shared/editor/lib/database";
+import { computeDatabase } from "@shared/editor/lib/databaseCompute";
 import { databaseFromNode } from "@shared/editor/nodes/Database";
 import type { ComponentProps } from "@shared/editor/types";
 import { s } from "@shared/styles";
+import useStores from "~/hooks/useStores";
 import { BoardView } from "./BoardView";
 import { CalendarView } from "./CalendarView";
 import { RowPanel } from "./RowPanel";
@@ -41,6 +43,7 @@ function DatabaseBlock({
   isEditable,
   isSelected,
 }: ComponentProps) {
+  const { users } = useStores();
   const data = React.useMemo(() => databaseFromNode(node), [node]);
   const mutator = React.useMemo(
     () => new DatabaseMutator(editorView, getPos),
@@ -92,11 +95,15 @@ function DatabaseBlock({
     return null;
   }
 
-  const rows = rowsForView(data, activeView);
-  const openRow = data.rows.find((row) => row.id === openRowId);
+  const computed = computeDatabase(data, {
+    userName: (id) => users.get(id)?.name,
+  });
+  const rows = rowsForView(computed, activeView);
+  const openRow = computed.rows.find((row) => row.id === openRowId);
 
   const context: DatabaseContextValue = {
     data,
+    computed,
     view: activeView,
     mutator,
     editable: isEditable,

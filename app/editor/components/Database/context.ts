@@ -5,10 +5,14 @@ import type {
   SelectOption,
   View,
 } from "@shared/editor/lib/database";
+import type { ComputedDatabase } from "@shared/editor/lib/databaseCompute";
 import type { DatabaseMutator } from "./mutations";
 
 export type DatabaseContextValue = {
+  /** Stored data: the only source for changes. */
   data: DatabaseData;
+  /** Data with calculated formula columns, for display, sorting and filters. */
+  computed: ComputedDatabase;
   view: View;
   mutator: DatabaseMutator;
   editable: boolean;

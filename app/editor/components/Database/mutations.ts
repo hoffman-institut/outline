@@ -159,7 +159,10 @@ export class DatabaseMutator {
    */
   setColumns(
     columns: Column[],
-    transform?: (cells: Record<string, CellValue>) => Record<string, CellValue>
+    transform?: (
+      cells: Record<string, CellValue>,
+      rowId: string
+    ) => Record<string, CellValue>
   ) {
     this.dispatch((tr, db) => {
       tr.setNodeMarkup(db.pos, undefined, { ...db.node.attrs, columns });
@@ -169,7 +172,7 @@ export class DatabaseMutator {
       db.node.forEach((child, offset) => {
         tr.setNodeMarkup(db.pos + 1 + offset, undefined, {
           ...child.attrs,
-          cells: transform(child.attrs.cells ?? {}),
+          cells: transform(child.attrs.cells ?? {}, child.attrs.id),
         });
       });
     });

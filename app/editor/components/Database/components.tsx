@@ -141,6 +141,16 @@ export const MenuRow = styled.button<{ $danger?: boolean; $active?: boolean }>`
   }
 `;
 
+/** Calculation error shown in place of a formula value. */
+export const CellError = styled.div`
+  min-height: 34px;
+  padding: 6px 8px;
+  color: ${s("danger")};
+  font-size: 13px;
+  line-height: 22px;
+  word-break: break-word;
+`;
+
 export const MenuLabel = styled.div`
   padding: 8px 8px 4px;
   color: ${s("textTertiary")};

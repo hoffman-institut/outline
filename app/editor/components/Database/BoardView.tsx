@@ -17,7 +17,7 @@ const NONE = "__none__";
 /** Kanban board: one lane per option of the grouping select column. */
 export function BoardView({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
-  const { data, view, editable, mutator } = useDatabase();
+  const { data, computed, view, editable, mutator } = useDatabase();
   const groupColumn = data.columns.find(
     (c) => c.id === view.groupBy && c.type === ColumnType.Select
   );
@@ -40,11 +40,11 @@ export function BoardView({ rows }: { rows: Row[] }) {
       ? value
       : NONE;
   };
-  const shown = data.columns.filter(
+  const shown = computed.columns.filter(
     (c) =>
       !view.hidden.includes(c.id) &&
       c.id !== groupColumn.id &&
-      c.id !== data.columns[0]?.id
+      c.id !== computed.columns[0]?.id
   );
 
   const moveTo = (rowId: string, laneId: string) =>
@@ -114,8 +114,8 @@ export function BoardView({ rows }: { rows: Row[] }) {
 /** Compact preview of a row used by board and calendar views. */
 export function Card({ row, fields }: { row: Row; fields: Column[] }) {
   const { t } = useTranslation();
-  const { data, editable, openRow } = useDatabase();
-  const titleColumn = data.columns[0];
+  const { computed, editable, openRow } = useDatabase();
+  const titleColumn = computed.columns[0];
   const title = titleColumn
     ? displayValue(titleColumn, row.cells[titleColumn.id])
     : "";

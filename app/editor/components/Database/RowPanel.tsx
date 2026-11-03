@@ -8,25 +8,32 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
-import type { Row } from "@shared/editor/lib/database";
 import { displayValue } from "@shared/editor/lib/database";
+import type { ComputedRow } from "@shared/editor/lib/databaseCompute";
+import { isComputed } from "@shared/editor/lib/databaseCompute";
 import { s } from "@shared/styles";
 import { useDocumentContext } from "~/components/DocumentContext";
 import useStores from "~/hooks/useStores";
 import { client } from "~/utils/ApiClient";
 import { Cell } from "./Cell";
 import { ColumnTypeIcon } from "./ColumnMenu";
-import { SmallButton } from "./components";
+import { CellError, SmallButton } from "./components";
 import { useDatabase } from "./context";
 
 /** All fields of one row, shown above the view (opened from cards and rows). */
-export function RowPanel({ row, onClose }: { row: Row; onClose: () => void }) {
+export function RowPanel({
+  row,
+  onClose,
+}: {
+  row: ComputedRow;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
-  const { data, editable, mutator, createOption } = useDatabase();
+  const { computed, editable, mutator, createOption } = useDatabase();
   const { documents } = useStores();
   const { document } = useDocumentContext();
   const [creating, setCreating] = React.useState(false);
-  const titleColumn = data.columns[0];
+  const titleColumn = computed.columns[0];
   const title = titleColumn
     ? displayValue(titleColumn, row.cells[titleColumn.id])
     : "";
@@ -97,22 +104,26 @@ export function RowPanel({ row, onClose }: { row: Row; onClose: () => void }) {
         </SmallButton>
       </PanelHeader>
       <Fields>
-        {data.columns.map((column) => (
+        {computed.columns.map((column) => (
           <React.Fragment key={column.id}>
             <FieldName>
-              <ColumnTypeIcon type={column.type} />
+              <ColumnTypeIcon type={column.source?.type ?? column.type} />
               {column.name}
             </FieldName>
             <FieldValue>
-              <Cell
-                column={column}
-                value={row.cells[column.id]}
-                editable={editable}
-                onChange={(value) =>
-                  mutator.setCells(row.id, { [column.id]: value })
-                }
-                onCreateOption={(name) => createOption(column, name)}
-              />
+              {row.errors?.[column.id] ? (
+                <CellError>{row.errors[column.id]}</CellError>
+              ) : (
+                <Cell
+                  column={column}
+                  value={row.cells[column.id]}
+                  editable={editable && !isComputed(column)}
+                  onChange={(value) =>
+                    mutator.setCells(row.id, { [column.id]: value })
+                  }
+                  onCreateOption={(name) => createOption(column, name)}
+                />
+              )}
             </FieldValue>
           </React.Fragment>
         ))}

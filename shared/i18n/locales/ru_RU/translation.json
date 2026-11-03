@@ -2219,5 +2219,7 @@
   "Checked": "Отмечено",
   "Unchecked": "Не отмечено",
   "Percent checked": "% отмечено",
-  "Calculate": "Итог"
+  "Calculate": "Итог",
+  "Formula": "Формула",
+  "Formula help": "Справка по формулам"
 }

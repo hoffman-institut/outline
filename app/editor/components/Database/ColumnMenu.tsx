@@ -12,6 +12,7 @@ import {
   InsertRightIcon,
   LinkIcon,
   BulletedListIcon,
+  MathIcon,
   KeyboardIcon,
   SortAscendingIcon,
   SortDescendingIcon,
@@ -35,7 +36,9 @@ import {
   nextOptionColor,
   optionNamesFor,
 } from "@shared/editor/lib/database";
+import { renameFormulaRef } from "@shared/editor/lib/formula";
 import { s } from "@shared/styles";
+import { FormulaEditor } from "./FormulaEditor";
 import {
   ColorPicker,
   Chip,
@@ -96,6 +99,11 @@ export function useColumnTypes() {
         label: t("Phone"),
         icon: <KeyboardIcon size={18} />,
       },
+      {
+        type: ColumnType.Formula,
+        label: t("Formula"),
+        icon: <MathIcon size={18} />,
+      },
     ],
     [t]
   );
@@ -118,7 +126,7 @@ export function ColumnMenu({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const { data, view, mutator } = useDatabase();
+  const { data, computed, view, mutator } = useDatabase();
   const updateView = useUpdateView();
   const types = useColumnTypes();
   const [name, setName] = React.useState(column.name);
@@ -127,14 +135,26 @@ export function ColumnMenu({
 
   const setColumns = (
     columns: Column[],
-    transform?: (cells: Record<string, CellValue>) => Record<string, CellValue>
+    transform?: (
+      cells: Record<string, CellValue>,
+      rowId: string
+    ) => Record<string, CellValue>
   ) => mutator.setColumns(columns, transform);
 
+  // Renaming also updates the formulas that use the column.
   const rename = () => {
-    if (name.trim() && name !== column.name) {
+    const next = name.trim();
+    if (next && next !== column.name) {
       setColumns(
         data.columns.map((c) =>
-          c.id === column.id ? { ...c, name: name.trim() } : c
+          c.id === column.id
+            ? { ...c, name: next }
+            : c.formula
+              ? {
+                  ...c,
+                  formula: renameFormulaRef(c.formula, column.name, next),
+                }
+              : c
         )
       );
     }
@@ -149,12 +169,32 @@ export function ColumnMenu({
     if (column.width) {
       next.width = column.width;
     }
+    if (type === ColumnType.Formula) {
+      // Stored values are replaced by the results of the formula.
+      next.formula = "";
+      setColumns(
+        data.columns.map((c) => (c.id === column.id ? next : c)),
+        (cells) => {
+          const { [column.id]: _removed, ...rest } = cells;
+          return rest;
+        }
+      );
+      return;
+    }
+    // A formula column keeps its current results as values.
+    const isFormula = column.type === ColumnType.Formula;
+    const from = computed.columns.find((c) => c.id === column.id) ?? column;
+    const fromRows = isFormula ? computed.rows : data.rows;
+    const valueOf = (rowId: string, cells: Record<string, CellValue>) =>
+      isFormula
+        ? computed.rows.find((row) => row.id === rowId)?.cells[column.id]
+        : cells[column.id];
     if (isSelectType(type)) {
       if (isSelectType(column.type)) {
         next.options = column.options ?? [];
       } else {
         const options: SelectOption[] = [];
-        for (const optionName of optionNamesFor(column, data.rows)) {
+        for (const optionName of optionNamesFor(from, fromRows)) {
           options.push({
             id: newId(),
             name: optionName,
@@ -166,9 +206,9 @@ export function ColumnMenu({
     }
     setColumns(
       data.columns.map((c) => (c.id === column.id ? next : c)),
-      (cells) => ({
+      (cells, rowId) => ({
         ...cells,
-        [column.id]: convertValue(column, next, cells[column.id]),
+        [column.id]: convertValue(from, next, valueOf(rowId, cells)),
       })
     );
   };
@@ -219,6 +259,8 @@ export function ColumnMenu({
   };
 
   const current = types.find((item) => item.type === column.type);
+  const valueType =
+    computed.columns.find((c) => c.id === column.id)?.type ?? column.type;
 
   return (
     <Body>
@@ -252,8 +294,9 @@ export function ColumnMenu({
           </MenuRow>
         ))}
       {isSelectType(column.type) && <OptionsEditor column={column} />}
+      {column.type === ColumnType.Formula && <FormulaEditor column={column} />}
       <MenuDivider />
-      {column.type === ColumnType.Date && (
+      {valueType === ColumnType.Date && (
         <MenuRow type="button" onClick={() => sort("asc", true)}>
           <ClockIcon size={18} />
           {t("Nearest dates first (birthdays)")}

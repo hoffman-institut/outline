@@ -24,7 +24,7 @@ const isLeapYear = (year: number) =>
 export function CalendarView({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
   const locale = (useUserLocale() ?? "ru_RU").replace("_", "-");
-  const { data, view, editable, mutator, openRow } = useDatabase();
+  const { data, computed, view, editable, mutator, openRow } = useDatabase();
   const now = new Date();
   const [cursor, setCursor] = React.useState({
     year: now.getFullYear(),
@@ -33,7 +33,7 @@ export function CalendarView({ rows }: { rows: Row[] }) {
   const dateColumn = data.columns.find(
     (c) => c.id === view.dateColumn && c.type === ColumnType.Date
   );
-  const titleColumn = data.columns[0];
+  const titleColumn = computed.columns[0];
 
   if (!dateColumn) {
     return <Notice>{t("Choose a date column in “Fields”.")}</Notice>;

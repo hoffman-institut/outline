@@ -17,6 +17,7 @@ export enum ColumnType {
   Url = "url",
   Email = "email",
   Phone = "phone",
+  Formula = "formula",
 }
 
 export enum ViewType {
@@ -51,6 +52,8 @@ export type Column = {
   options?: SelectOption[];
   /** Column width in pixels in the table view. */
   width?: number;
+  /** Formula columns: the formula, e.g. "[Цена] * [Количество]". */
+  formula?: string;
 };
 
 export type SortDirection = "asc" | "desc";
@@ -603,11 +606,11 @@ export function matchesFilter(
  * @param today today as "YYYY-MM-DD".
  * @returns the rows to display.
  */
-export function rowsForView(
-  data: Pick<DatabaseData, "columns" | "rows">,
+export function rowsForView<R extends Row>(
+  data: { columns: Column[]; rows: R[] },
   view: View | undefined,
   today = todayValue()
-): Row[] {
+): R[] {
   if (!view) {
     return data.rows;
   }
@@ -812,6 +815,7 @@ export function normalizeDatabase(input: unknown): DatabaseData {
               }
             : {}),
           ...(typeof c.width === "number" ? { width: c.width } : {}),
+          ...(typeof c.formula === "string" ? { formula: c.formula } : {}),
         }))
     : [];
   const views: View[] = Array.isArray(raw.views)

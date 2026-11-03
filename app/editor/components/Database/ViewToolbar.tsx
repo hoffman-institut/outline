@@ -233,9 +233,9 @@ function ViewTabMenu({
 
 function SortButton() {
   const { t } = useTranslation();
-  const { data, view, editable } = useDatabase();
+  const { computed, view, editable } = useDatabase();
   const updateView = useUpdateView();
-  const columns = data.columns;
+  const columns = computed.columns;
 
   const setRule = (index: number, patch: Partial<SortRule>) =>
     updateView({
@@ -363,9 +363,9 @@ const FilterValue = observer(function FilterValue({
   onChange: (value: string | number) => void;
 }) {
   const { t } = useTranslation();
-  const { data, editable } = useDatabase();
+  const { computed, editable } = useDatabase();
   const { users } = useStores();
-  const column = data.columns.find((c) => c.id === rule.columnId);
+  const column = computed.columns.find((c) => c.id === rule.columnId);
   if (
     !column ||
     ["is_empty", "is_not_empty", "checked", "unchecked"].includes(rule.operator)
@@ -429,7 +429,7 @@ const FilterValue = observer(function FilterValue({
 
 function FilterButton() {
   const { t } = useTranslation();
-  const { data, view, editable } = useDatabase();
+  const { computed, view, editable } = useDatabase();
   const updateView = useUpdateView();
   const labels = useOperatorLabels();
 
@@ -453,14 +453,14 @@ function FilterButton() {
         <PopoverBody>
           {view.filters.length === 0 && <Hint>{t("All rows are shown")}</Hint>}
           {view.filters.map((rule, index) => {
-            const column = data.columns.find((c) => c.id === rule.columnId);
+            const column = computed.columns.find((c) => c.id === rule.columnId);
             return (
               <RuleRow key={`${rule.columnId}-${index}`}>
                 <Select
                   disabled={!editable}
                   value={rule.columnId}
                   onChange={(event) => {
-                    const next = data.columns.find(
+                    const next = computed.columns.find(
                       (c) => c.id === event.target.value
                     );
                     if (next) {
@@ -472,7 +472,7 @@ function FilterButton() {
                     }
                   }}
                 >
-                  {data.columns.map((c) => (
+                  {computed.columns.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
@@ -513,7 +513,7 @@ function FilterButton() {
               </RuleRow>
             );
           })}
-          {editable && data.columns.length > 0 && (
+          {editable && computed.columns.length > 0 && (
             <MenuRow
               type="button"
               onClick={() =>
@@ -521,8 +521,8 @@ function FilterButton() {
                   filters: [
                     ...view.filters,
                     {
-                      columnId: data.columns[0].id,
-                      operator: operatorsFor(data.columns[0].type)[0],
+                      columnId: computed.columns[0].id,
+                      operator: operatorsFor(computed.columns[0].type)[0],
                       value: "",
                     },
                   ],

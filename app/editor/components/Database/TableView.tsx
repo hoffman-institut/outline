@@ -2,12 +2,7 @@ import { PlusIcon, TrashIcon, DuplicateIcon, OpenIcon } from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
-import type {
-  CellValue,
-  Column,
-  Row,
-  TotalKind,
-} from "@shared/editor/lib/database";
+import type { CellValue, Column, TotalKind } from "@shared/editor/lib/database";
 import {
   ColumnType,
   computeTotal,
@@ -17,6 +12,11 @@ import {
   rowDropIndex,
   totalsFor,
 } from "@shared/editor/lib/database";
+import type {
+  ComputedColumn,
+  ComputedRow,
+} from "@shared/editor/lib/databaseCompute";
+import { isComputed } from "@shared/editor/lib/databaseCompute";
 import { s } from "@shared/styles";
 import {
   Popover,
@@ -25,7 +25,7 @@ import {
 } from "~/components/primitives/Popover";
 import { Cell } from "./Cell";
 import { ColumnMenu, ColumnTypeIcon } from "./ColumnMenu";
-import { MenuRow, PopoverBody, stop } from "./components";
+import { CellError, MenuRow, PopoverBody, stop } from "./components";
 import { useDatabase, useUpdateView } from "./context";
 
 const defaultWidth = (type: ColumnType) =>
@@ -43,12 +43,12 @@ export function TableView({
   rows,
   focusRowId,
 }: {
-  rows: Row[];
+  rows: ComputedRow[];
   focusRowId?: string;
 }) {
   const { t } = useTranslation();
-  const { data, view, editable, mutator } = useDatabase();
-  const columns = data.columns.filter((c) => !view.hidden.includes(c.id));
+  const { data, computed, view, editable, mutator } = useDatabase();
+  const columns = computed.columns.filter((c) => !view.hidden.includes(c.id));
   // Manual order only makes sense when the view is not sorted.
   const reorderable = editable && view.sort.length === 0;
   const [drop, setDrop] = React.useState<{
@@ -183,12 +183,12 @@ export function TableView({
 const COLUMN_DRAG = "text/x-database-column";
 
 function HeaderCell({
-  column,
+  column: shown,
   width,
   onResize,
   onResizeEnd,
 }: {
-  column: Column;
+  column: ComputedColumn;
   width: number;
   onResize: (width: number) => void;
   onResizeEnd: (width: number) => void;
@@ -196,6 +196,8 @@ function HeaderCell({
   const { editable, data, mutator } = useDatabase();
   const [open, setOpen] = React.useState(false);
   const resizing = React.useRef(false);
+  // The menu edits the stored column (a formula, not its result type).
+  const column = shown.source ?? shown;
   const [dropSide, setDropSide] = React.useState<"before" | "after" | null>(
     null
   );
@@ -410,8 +412,8 @@ function TableRow({
   onDropRow,
   onDragEnd,
 }: {
-  row: Row;
-  columns: Column[];
+  row: ComputedRow;
+  columns: ComputedColumn[];
   autoFocus?: boolean;
   reorderable: boolean;
   drop: "before" | "after" | null;
@@ -518,16 +520,20 @@ function TableRow({
       </td>
       {columns.map((column, index) => (
         <td key={column.id}>
-          <Cell
-            column={column}
-            value={row.cells[column.id]}
-            editable={editable}
-            autoFocus={autoFocus && index === 0}
-            onChange={(value) =>
-              mutator.setCells(row.id, { [column.id]: value })
-            }
-            onCreateOption={(name) => createOption(column, name)}
-          />
+          {row.errors?.[column.id] ? (
+            <CellError>{row.errors[column.id]}</CellError>
+          ) : (
+            <Cell
+              column={column}
+              value={row.cells[column.id]}
+              editable={editable && !isComputed(column)}
+              autoFocus={autoFocus && index === 0 && !isComputed(column)}
+              onChange={(value) =>
+                mutator.setCells(row.id, { [column.id]: value })
+              }
+              onCreateOption={(name) => createOption(column, name)}
+            />
+          )}
         </td>
       ))}
       {editable && <td />}

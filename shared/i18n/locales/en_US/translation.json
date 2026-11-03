@@ -2027,5 +2027,7 @@
   "Checked": "Checked",
   "Unchecked": "Unchecked",
   "Percent checked": "Percent checked",
-  "Calculate": "Calculate"
+  "Calculate": "Calculate",
+  "Formula": "Formula",
+  "Formula help": "Formula help"
 }
