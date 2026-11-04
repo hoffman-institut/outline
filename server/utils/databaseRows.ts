@@ -35,6 +35,7 @@ import type { User } from "@server/models";
 import { DocumentHelper } from "@server/models/helpers/DocumentHelper";
 import { authorize, can } from "@server/policies";
 import { sequelize } from "@server/storage/database";
+import { requestContext } from "@server/storage/requestContext";
 import type { APIContext } from "@server/types";
 
 /**
@@ -361,22 +362,25 @@ export async function addDatabaseRow(
   // merge of our change, dropping it. Its next save (a few seconds after the
   // merge) brings the change back, so check later and add the row again only
   // if the stored state never got the change. A row that came and was then
-  // deleted by someone is not added again.
-  setTimeout(() => {
-    void (async () => {
-      try {
-        if (!(await isStored(ref, version))) {
-          Logger.warn("Database row lost after save, adding again", {
-            documentId: ref.documentId,
-            rowId,
-          });
-          await add(true);
+  // deleted by someone is not added again. The check runs outside the
+  // request, which is over by then: queries of a closed request are refused.
+  requestContext.exit(() =>
+    setTimeout(() => {
+      void (async () => {
+        try {
+          if (!(await isStored(ref, version))) {
+            Logger.warn("Database row lost after save, adding again", {
+              documentId: ref.documentId,
+              rowId,
+            });
+            await add(true);
+          }
+        } catch (err) {
+          Logger.error("Database row check failed", err as Error);
         }
-      } catch (err) {
-        Logger.error("Database row check failed", err as Error);
-      }
-    })();
-  }, 15000);
+      })();
+    }, 15000)
+  );
   return rowId;
 }
 
