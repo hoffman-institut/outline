@@ -11,10 +11,12 @@ import { Day, Hour } from "@shared/utils/time";
 import env from "@server/env";
 import { NotFoundError } from "@server/errors";
 import auth from "@server/middlewares/authentication";
+import { rateLimiter } from "@server/middlewares/rateLimiter";
 import shareDomains from "@server/middlewares/shareDomains";
 import { Integration } from "@server/models";
 import { getSessionRedirectUrl } from "@server/utils/authentication";
 import { getTeamFromContext } from "@server/utils/passport";
+import { RateLimiterStrategy } from "@server/utils/RateLimiter";
 import { isInvalidAppPath } from "@server/utils/url";
 import apexRedirect from "../middlewares/apexRedirect";
 import { renderApp, renderShare } from "./app";
@@ -144,7 +146,13 @@ router.get("/embeds/gitlab", renderEmbed);
 router.get("/embeds/github", renderEmbed);
 router.get("/embeds/dropbox", renderEmbed);
 router.get("/embeds/pinterest", renderEmbed);
-router.get("/embeds/files", auth({ optional: true }), renderFileCard);
+// Limited, so that cards cannot be used to probe links of the services.
+router.get(
+  "/embeds/files",
+  rateLimiter(RateLimiterStrategy.OneHundredPerMinute),
+  auth({ optional: true }),
+  renderFileCard
+);
 
 router.use(shareDomains());
 

@@ -662,6 +662,22 @@ describe("files", () => {
       displayValue({ id: "f", name: "F", type: ColumnType.Files }, value)
     ).toBe("photo.jpg, act.pdf");
   });
+
+  it("keeps only uploads and web links", () => {
+    const file = (url: string) => fileToCell({ id: url, name: "x", url });
+    const files = parseFiles([
+      file("/api/attachments.redirect?id=a"),
+      file("https://disk.yandex.ru/i/abc"),
+      file("javascript:alert(1)"),
+      file("//evil.example/x"),
+      file("/\\evil.example/x"),
+      file("data:text/html,x"),
+    ]);
+    expect(files.map((f) => f.url)).toEqual([
+      "/api/attachments.redirect?id=a",
+      "https://disk.yandex.ru/i/abc",
+    ]);
+  });
 });
 
 describe("treeRows", () => {

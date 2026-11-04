@@ -93,6 +93,18 @@ describe("Text color markdown", () => {
     expect(strong).toBe(true);
   });
 
+  it("does not put a stored color that is not a color into the page", () => {
+    const mark = schema.marks.text_color.create({
+      color: "red;background:url(//evil.example/x)",
+    });
+    const spec = schema.marks.text_color.spec.toDOM!(mark, true);
+    expect(JSON.stringify(spec)).not.toContain("evil");
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, schema.text("текст", [mark])),
+    ]);
+    expect(serializer.serialize(doc).trim()).toBe("текст");
+  });
+
   it("leaves an unknown color as text", () => {
     const parsed = parser.parse("{color:red}текст{/color}");
     expect(parsed.textContent).toBe("{color:red}текст{/color}");

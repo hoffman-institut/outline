@@ -13,7 +13,12 @@ import {
 } from "@server/utils/fileCards";
 import { iframeCheckScript, resizeObserverScript } from "./embeds";
 
-const timeout = 8000;
+// Both services answer small documents; a redirect would lead elsewhere.
+const options = {
+  timeout: 8000,
+  redirect: "error",
+  size: 1024 * 1024,
+} as const;
 
 async function loadCard(source: FileSource) {
   if (source.service === "yandex") {
@@ -28,14 +33,14 @@ async function loadCard(source: FileSource) {
     }
     const res = await fetch(
       `https://cloud-api.yandex.net/v1/disk/public/resources?${params}`,
-      { timeout }
+      options
     );
     return res.ok ? yandexCard(source, await res.json()) : undefined;
   }
 
   const res = await fetch(`https://${nextcloudHost}/public.php/webdav/`, {
+    ...options,
     method: "PROPFIND",
-    timeout,
     headers: {
       Authorization: `Basic ${Buffer.from(`${source.token}:`).toString("base64")}`,
       Depth: "1",
@@ -69,7 +74,8 @@ export const renderFileCard = async (ctx: Context) => {
     : undefined;
 
   ctx.set("X-Frame-Options", "sameorigin");
-  ctx.set("Cache-Control", "private, max-age=300");
+  // A card without contents must not stay after signing in.
+  ctx.set("Cache-Control", signedIn ? "private, max-age=300" : "no-store");
   ctx.type = "html";
   ctx.body = `<!doctype html>
 <html${ctx.query.dark === "1" ? ' class="dark"' : ""}>

@@ -35,7 +35,6 @@ import type { User } from "@server/models";
 import { DocumentHelper } from "@server/models/helpers/DocumentHelper";
 import { authorize, can } from "@server/policies";
 import { sequelize } from "@server/storage/database";
-import Redis from "@server/storage/redis";
 import type { APIContext } from "@server/types";
 
 /**
@@ -48,6 +47,11 @@ import type { APIContext } from "@server/types";
 type Located = { node: Node; pos: number; data: DatabaseData };
 type Context = APIContext["context"];
 type Cells = Record<string, CellValue>;
+/** A change in the collaborative state: its client and the clock after it. */
+type Version = { client: number; clock: number };
+
+/** Longest text a cell may hold when set through the API. */
+const maxText = 10000;
 
 /** A database block of a document with its data. */
 export type FoundDatabase = DatabaseData & { id: string };
@@ -58,13 +62,18 @@ export type FoundDatabase = DatabaseData & { id: string };
  * @param state collaborative state of the document.
  * @param databaseId the database block.
  * @param edit builds the change.
- * @returns the new state and content.
+ * @returns the new state and content, with the version of the change.
  */
 function editDatabase(
   state: Uint8Array,
   databaseId: string,
   edit: (db: Located, tr: Transaction) => void
-): { state: Buffer; content: ProsemirrorData } {
+): {
+  state: Buffer;
+  content: ProsemirrorData;
+  version: Version;
+  changed: boolean;
+} {
   const ydoc = new Y.Doc();
   Y.applyUpdate(ydoc, state);
   const doc = Node.fromJSON(schema, yDocToProsemirrorJSON(ydoc, "default"));
@@ -106,6 +115,11 @@ function editDatabase(
       schema,
       yDocToProsemirrorJSON(ydoc, "default")
     ).toJSON() as ProsemirrorData,
+    version: {
+      client: ydoc.clientID,
+      clock: Y.getState(ydoc.store, ydoc.clientID),
+    },
+    changed: tr.docChanged,
   };
 }
 
@@ -196,8 +210,13 @@ export function sanitizeCells(
       case ColumnType.Files:
         cells[columnId] = list(value);
         break;
-      default:
-        cells[columnId] = String(value);
+      default: {
+        const text = String(value);
+        if (text.length > maxText) {
+          throw ValidationError(`${column.name}: text is too long`);
+        }
+        cells[columnId] = text;
+      }
     }
   }
   return cells;
@@ -228,61 +247,56 @@ async function loadForChange(
 }
 
 /** Applies a change to a database and saves the document. */
-async function change(
+function change(
   user: User,
   context: Context,
   ref: DatabaseRef,
   needsUpdate: boolean,
   edit: (db: Located, tr: Transaction, canEdit: boolean) => void
-) {
-  await sequelize.transaction(async (transaction) => {
+): Promise<Version> {
+  return sequelize.transaction(async (transaction) => {
     const document = await loadForChange(user, ref.documentId, transaction);
     const canEdit = !!can(user, "update", document);
     if (needsUpdate) {
       authorize(user, "update", document);
+    } else if (!canEdit && !document.isActive) {
+      // Forms of archived documents take no more answers.
+      throw AuthorizationError("The document is archived");
     }
     const updated = editDatabase(
       DocumentHelper.toState(document),
       ref.databaseId,
       (db, tr) => edit(db, tr, canEdit)
     );
+    if (!updated.changed) {
+      return updated.version;
+    }
     // Hooks notify the collaboration server, which merges the change into
     // the open editors.
     await document.update(
       { state: updated.state, content: updated.content },
       { ...context, transaction }
     );
+    return updated.version;
   });
 }
 
-/** Marks a row deleted on purpose, so that the check after adding it does not add it again. */
-const deletedKey = (rowId: string) => `database:deleted-row:${rowId}`;
-
-/** Whether the document still holds a row, after saves of open editors. */
-async function hasRow(ref: DatabaseRef, rowId: string) {
+/**
+ * Whether the stored state of a document holds a change, even when rows it
+ * added were deleted since.
+ */
+async function isStored(ref: DatabaseRef, version: Version) {
   const document = await Document.unscoped().findOne({
     where: { id: ref.documentId },
-    attributes: ["id", "content"],
+    attributes: ["id", "state"],
   });
-  let found = false;
-  const visit = (node: ProsemirrorData | undefined, inDatabase: boolean) => {
-    if (!node || found) {
-      return;
-    }
-    if (
-      inDatabase &&
-      node.type === "database_row" &&
-      node.attrs?.id === rowId
-    ) {
-      found = true;
-      return;
-    }
-    const isTarget =
-      node.type === "database" && node.attrs?.id === ref.databaseId;
-    node.content?.forEach((child) => visit(child, inDatabase || isTarget));
-  };
-  visit(document?.content ?? undefined, false);
-  return found;
+  if (!document?.state) {
+    return true;
+  }
+  const stored = Y.decodeStateVector(
+    Y.encodeStateVectorFromUpdate(document.state)
+  );
+  return (stored.get(version.client) ?? 0) >= version.clock;
 }
 
 /**
@@ -298,18 +312,34 @@ export async function addDatabaseRow(
   input: Record<string, unknown> = {},
   rowId: string = uuidv4()
 ): Promise<string> {
-  const add = () =>
+  const add = (again: boolean) =>
     change(user, context, ref, false, ({ node, pos, data }, tr, canEdit) => {
       const form = data.views.find((v) => v.type === ViewType.Form);
       if (!canEdit && !form) {
         throw AuthorizationError("The database has no form");
       }
+      let exists = false;
+      node.forEach((child) => {
+        if (child.attrs.id === rowId) {
+          exists = true;
+        }
+      });
+      if (exists) {
+        if (again) {
+          return;
+        }
+        throw ValidationError("A row with this id already exists");
+      }
+      // Uploads need the right to edit the document, as in the form.
       const allowed =
         canEdit || !form
           ? undefined
           : new Set(
               data.columns
-                .filter((c) => !form.hidden.includes(c.id))
+                .filter(
+                  (c) =>
+                    !form.hidden.includes(c.id) && c.type !== ColumnType.Files
+                )
                 .map((c) => c.id)
             );
       const values = sanitizeCells(data.columns, input, allowed);
@@ -325,24 +355,22 @@ export async function addDatabaseRow(
         schema.nodes.database_row.create({ id: rowId, cells: values })
       );
     });
-  await add();
+  const version = await add(false);
 
   // An open editor may save its own older state between our save and the
-  // merge of our change, dropping the row. Its next save (a few seconds
-  // after the merge) restores the row if it was merged, so check later
-  // and add the row again only if it is still missing.
+  // merge of our change, dropping it. Its next save (a few seconds after the
+  // merge) brings the change back, so check later and add the row again only
+  // if the stored state never got the change. A row that came and was then
+  // deleted by someone is not added again.
   setTimeout(() => {
     void (async () => {
       try {
-        if (
-          !(await Redis.defaultClient.exists(deletedKey(rowId))) &&
-          !(await hasRow(ref, rowId))
-        ) {
+        if (!(await isStored(ref, version))) {
           Logger.warn("Database row lost after save, adding again", {
             documentId: ref.documentId,
             rowId,
           });
-          await add();
+          await add(true);
         }
       } catch (err) {
         Logger.error("Database row check failed", err as Error);
@@ -399,7 +427,6 @@ export async function deleteDatabaseRow(
     }
     found.reverse().forEach(({ from, to }) => tr.delete(from, to));
   });
-  await Redis.defaultClient.set(deletedKey(rowId), "1", "EX", 60);
 }
 
 /**

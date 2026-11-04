@@ -15,6 +15,13 @@ export const textColors = [
   { hex: "#8A8F98", name: "Gray" },
 ];
 
+const isColor = (color: unknown) =>
+  typeof color === "string" && validateColorHex(color);
+
+/** Colors written to markdown, as read back by the rule. */
+const isMarkdownColor = (color: unknown) =>
+  typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color);
+
 /** Colored text. */
 export default class TextColor extends Mark {
   get name() {
@@ -36,13 +43,18 @@ export default class TextColor extends Mark {
           },
         },
       ],
-      toDOM: (mark: ProsemirrorMark) => [
-        "span",
-        {
-          "data-text-color": mark.attrs.color,
-          style: `color: ${mark.attrs.color}`,
-        },
-      ],
+      // The color may come from stored JSON, so it is checked before it
+      // goes into a style.
+      toDOM: (mark: ProsemirrorMark) =>
+        isColor(mark.attrs.color)
+          ? [
+              "span",
+              {
+                "data-text-color": mark.attrs.color,
+                style: `color: ${mark.attrs.color}`,
+              },
+            ]
+          : ["span"],
     };
   }
 
@@ -53,8 +65,9 @@ export default class TextColor extends Mark {
   toMarkdown() {
     return {
       open: (_state: unknown, mark: ProsemirrorMark) =>
-        `{color:${mark.attrs.color}}`,
-      close: "{/color}",
+        isMarkdownColor(mark.attrs.color) ? `{color:${mark.attrs.color}}` : "",
+      close: (_state: unknown, mark: ProsemirrorMark) =>
+        isMarkdownColor(mark.attrs.color) ? "{/color}" : "",
       mixable: true,
       expelEnclosingWhitespace: true,
     };

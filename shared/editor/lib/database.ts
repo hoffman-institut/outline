@@ -46,7 +46,12 @@ export function parseFiles(value: CellValue | undefined): FileValue[] {
   return (Array.isArray(value) ? value : []).flatMap((item) => {
     try {
       const file = JSON.parse(item);
-      return file && typeof file.url === "string" ? [file as FileValue] : [];
+      // Uploads are local links; links from elsewhere must be web links.
+      return file &&
+        typeof file.url === "string" &&
+        /^(?:https?:\/\/|\/(?![/\\]))/i.test(file.url)
+        ? [file as FileValue]
+        : [];
     } catch {
       return [];
     }
