@@ -788,7 +788,12 @@ function FieldsButton() {
   );
   // An empty choice removes the key: attributes are synced as JSON.
   const setOptional = (
-    key: "endColumn" | "laneColumn" | "colorColumn" | "weekdayColumn",
+    key:
+      | "endColumn"
+      | "laneColumn"
+      | "colorColumn"
+      | "labelColumn"
+      | "weekdayColumn",
     value: string
   ) =>
     value
@@ -992,6 +997,20 @@ function FieldsButton() {
               >
                 <option value="">{t("None")}</option>
                 {timelineSelects.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              <MenuLabel>{t("Label")}</MenuLabel>
+              <Select
+                value={view.labelColumn ?? ""}
+                onChange={(event) =>
+                  setOptional("labelColumn", event.target.value)
+                }
+              >
+                <option value="">{t("Same as color")}</option>
+                {computed.columns.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

@@ -2132,5 +2132,7 @@
   "Overlap": "Overlap",
   "Shortened working day": "Shortened working day",
   "Non-working day": "Non-working day",
-  "Overlaps": "Overlaps"
+  "Overlaps": "Overlaps",
+  "Label": "Label",
+  "Same as color": "Same as color"
 }

@@ -1,5 +1,11 @@
 import type { CellValue, Column, Row, TimelineScale, View } from "./database";
-import { ColumnType, dateKey, dayNumber, groupRows } from "./database";
+import {
+  ColumnType,
+  dateKey,
+  dayNumber,
+  groupRows,
+  todayValue,
+} from "./database";
 
 /**
  * Pure helpers of the timeline view: the period shown, bars and weekly marks
@@ -210,6 +216,8 @@ export type TimelineItem<R> = {
   after: boolean;
   /** Rows with a day of the week: the marked days. Bars have none. */
   weekly?: number[];
+  /** A bar without an end that lasts until today. */
+  ongoing?: boolean;
 };
 
 export type TimelineLane<R> = {
@@ -224,22 +232,36 @@ export type TimelineLane<R> = {
 export type TimelineLayout<R> = {
   lanes: TimelineLane<R>[];
   /**
-   * Days where bars (not weekly marks) of two or more lanes meet, in order,
-   * with the labels of these lanes.
+   * Working days where bars (not weekly marks) of two or more lanes meet,
+   * in order, with the labels of these lanes.
    */
   overlaps: Map<number, string[]>;
 };
 
+export type TimelineOptions = {
+  /** Resolves user ids for lanes of people columns. */
+  userName?: (id: string) => string | undefined;
+  /**
+   * Production calendars by year: overlaps count only working days
+   * (shortened ones included); without a calendar Saturdays and Sundays
+   * are off.
+   */
+  calendars?: Partial<Record<number, string>>;
+  /** Today as "YYYY-MM-DD", for bars without an end. */
+  today?: string;
+};
+
 /**
  * Places rows of a timeline view on lanes: a bar from the start to the end
- * date, or a mark on the day of the week every week. Every value of the lane
+ * date, or a mark on the day of the week every week. A bar without an end
+ * lasts until today (one day when it starts later). Every value of the lane
  * column gets a lane, also when it has nothing in the range.
  *
  * @param columns columns of the database (calculated ones included).
  * @param rows rows of the view, filtered and sorted.
  * @param view the timeline view.
  * @param range the days shown.
- * @param userName resolves user ids for lanes of people columns.
+ * @param options user names, production calendars and today.
  * @returns the lanes and the overlaps.
  */
 export function timelineLayout<R extends Row>(
@@ -247,7 +269,7 @@ export function timelineLayout<R extends Row>(
   rows: R[],
   view: Pick<View, "dateColumn" | "endColumn" | "laneColumn" | "weekdayColumn">,
   range: DayRange,
-  userName?: (id: string) => string | undefined
+  { userName, calendars = {}, today = todayValue() }: TimelineOptions = {}
 ): TimelineLayout<R> {
   const dateColumn = (id?: string) =>
     columns.find((c) => c.id === id && c.type === ColumnType.Date);
@@ -266,6 +288,7 @@ export function timelineLayout<R extends Row>(
     const key = dateKey(value);
     return key ? dayNumber(key) : undefined;
   };
+  const todayDay = dayNumber(today);
 
   const itemOf = (row: R): Omit<TimelineItem<R>, "level"> | undefined => {
     const from = dayOf(row.cells[startColumn.id]);
@@ -307,8 +330,11 @@ export function timelineLayout<R extends Row>(
     if (low === undefined) {
       return undefined;
     }
-    // Without an end the bar is one day.
-    const end = high ?? low;
+    // A row without an end goes on until today (e.g. sick leave), a row
+    // that starts later lasts one day. Views without an end column show
+    // single days.
+    const ongoing = !!endColumn && high === undefined && low <= todayDay;
+    const end = high ?? (ongoing ? todayDay : low);
     if (end < range.start || low > range.end) {
       return undefined;
     }
@@ -318,6 +344,7 @@ export function timelineLayout<R extends Row>(
       end: Math.min(end, range.end),
       before: low < range.start,
       after: end > range.end,
+      ...(ongoing ? { ongoing } : {}),
     };
   };
 
@@ -341,7 +368,9 @@ export function timelineLayout<R extends Row>(
     for (const item of placed) {
       if (!item.weekly) {
         for (let day = item.start; day <= item.end; day++) {
-          busy.add(day);
+          if (dayKind(day, calendars) !== "off") {
+            busy.add(day);
+          }
         }
       }
     }

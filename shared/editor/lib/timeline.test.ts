@@ -66,6 +66,10 @@ const row = (id: string, cells: Row["cells"]): Row => ({ id, cells });
 
 const november = timelineRange("2026-11-15", "month");
 
+// isdayoff.ru, 2026, cc=ru, pre=1 (checked 05.11.2026).
+const real2026 =
+  "11111111111000001100000110000011000001100000110000011100001100000111000011000001100000110000011000001100000110000011000211100002111000011000001100000110000011000211100000110000011000001100000110000011000001100000110000011000001100000110000011000001100000110000011000001100000110000011000001100000110000011021001100000110000011000001100000110000011000001100000110001";
+
 describe("timeline periods", () => {
   it("covers the month, quarter and year of a day", () => {
     expect(timelineRange("2026-11-15", "month")).toEqual({
@@ -114,10 +118,6 @@ describe("timeline periods", () => {
 });
 
 describe("production calendar", () => {
-  // isdayoff.ru, 2026, cc=ru, pre=1 (checked 05.11.2026).
-  const real2026 =
-    "11111111111000001100000110000011000001100000110000011100001100000111000011000001100000110000011000001100000110000011000211100002111000011000001100000110000011000211100000110000011000001100000110000011000001100000110000011000001100000110000011000001100000110000011000001100000110000011000001100000110000011021001100000110000011000001100000110000011000001100000110001";
-
   it("reads the digits of the service", () => {
     expect(daysInYear(2026)).toBe(365);
     expect(daysInYear(2028)).toBe(366);
@@ -170,6 +170,8 @@ describe("weekday options", () => {
 });
 
 describe("timelineLayout", () => {
+  // Today for rows without an end.
+  const at = { today: "2026-11-15" };
   const rows = [
     row("a1", {
       who: "Анна",
@@ -202,7 +204,7 @@ describe("timelineLayout", () => {
     }),
     row("e1", { who: "", type: "off", from: "2026-12-01" }),
   ];
-  const layout = timelineLayout(columns, rows, view, november);
+  const layout = timelineLayout(columns, rows, view, november, at);
   const lane = (label: string) => layout.lanes.find((l) => l.label === label)!;
 
   it("makes one lane per value, also without bars in the range", () => {
@@ -253,7 +255,8 @@ describe("timelineLayout", () => {
       columns,
       [row("x", { who: "Дина", wday: "d4" })],
       view,
-      november
+      november,
+      at
     );
     expect(always.lanes[0].items[0].weekly!.map(dayKeyOf)).toEqual([
       "2026-11-06",
@@ -275,7 +278,8 @@ describe("timelineLayout", () => {
         }),
       ],
       view,
-      november
+      november,
+      at
     );
     expect(reversed.lanes[0].items[0].weekly!.map(dayKeyOf)).toEqual([
       "2026-11-09",
@@ -292,18 +296,57 @@ describe("timelineLayout", () => {
     expect(lane("Борис").levels).toBe(2);
   });
 
-  it("highlights days where bars of two or more lanes meet", () => {
+  it("highlights working days where bars of two or more lanes meet", () => {
     const days = [...layout.overlaps.keys()].map(dayKeyOf);
-    // Анна and Вера from 09.11 to 20.11, Борис and Вера from 18.11 to 24.11.
+    // Анна and Вера from 09.11 to 20.11, Борис and Вера from 18.11 to 24.11;
+    // without a calendar Saturdays and Sundays do not count.
     expect(days[0]).toBe("2026-11-09");
     expect(days[days.length - 1]).toBe("2026-11-24");
-    expect(days).toHaveLength(16);
+    expect(days).toHaveLength(12);
     expect(layout.overlaps.get(d("2026-11-19"))).toEqual([
       "Анна",
       "Борис",
       "Вера",
     ]);
-    expect(layout.overlaps.get(d("2026-11-21"))).toEqual(["Борис", "Вера"]);
+    expect(layout.overlaps.has(d("2026-11-21"))).toBe(false);
+    expect(layout.overlaps.get(d("2026-11-23"))).toEqual(["Борис", "Вера"]);
+  });
+
+  it("does not count holidays, counts shortened days", () => {
+    const calendars = { 2026: real2026 };
+    const two = (first: [string, string], second: [string, string]) =>
+      timelineLayout(
+        columns,
+        [
+          row("1", { who: "Анна", from: first[0], to: first[1] }),
+          row("2", { who: "Борис", from: second[0], to: second[1] }),
+        ],
+        view,
+        november,
+        { ...at, calendars }
+      ).overlaps;
+    // Only on 04.11.2026, Unity Day.
+    expect(
+      two(["2026-11-02", "2026-11-04"], ["2026-11-04", "2026-11-06"]).size
+    ).toBe(0);
+    // Only on 03.11.2026, a shortened working day.
+    const shortened = two(
+      ["2026-11-02", "2026-11-03"],
+      ["2026-11-03", "2026-11-06"]
+    );
+    expect([...shortened.keys()].map(dayKeyOf)).toEqual(["2026-11-03"]);
+    // Only on Saturday 07.11.2026, also without a calendar.
+    const saturday = timelineLayout(
+      columns,
+      [
+        row("1", { who: "Анна", from: "2026-11-05", to: "2026-11-07" }),
+        row("2", { who: "Борис", from: "2026-11-07", to: "2026-11-08" }),
+      ],
+      view,
+      november,
+      at
+    );
+    expect(saturday.overlaps.size).toBe(0);
   });
 
   it("does not count weekly marks or two bars of one lane", () => {
@@ -315,28 +358,66 @@ describe("timelineLayout", () => {
         row("3", { who: "Борис", wday: "d2" }),
       ],
       view,
-      november
+      november,
+      at
     );
     expect(own.overlaps.size).toBe(0);
     expect(own.lanes[0].levels).toBe(2);
   });
 
-  it("makes one-day bars without an end and swaps reversed dates", () => {
+  it("bars without an end last until today", () => {
     const result = timelineLayout(
       columns,
       [
-        row("1", { who: "Анна", from: "2026-11-03" }),
+        row("1", { who: "Анна", from: "2026-11-10" }),
+        row("2", { who: "Борис", from: "2026-10-20" }),
+        // Starts after today: one day.
+        row("3", { who: "Вера", from: "2026-11-20" }),
+      ],
+      view,
+      november,
+      at
+    );
+    const items = result.lanes.map((l) => l.items[0]);
+    expect(items.map((i) => [dayKeyOf(i.start), dayKeyOf(i.end)])).toEqual([
+      ["2026-11-10", "2026-11-15"],
+      ["2026-11-01", "2026-11-15"],
+      ["2026-11-20", "2026-11-20"],
+    ]);
+    expect(items.map((i) => !!i.ongoing)).toEqual([true, true, false]);
+    expect(items[1]).toMatchObject({ before: true, after: false });
+
+    // A view without an end column shows single days.
+    const single = timelineLayout(
+      columns,
+      [row("1", { who: "Анна", from: "2026-11-10" })],
+      { ...view, endColumn: undefined },
+      november,
+      at
+    );
+    expect(single.lanes[0].items[0]).toMatchObject({
+      start: d("2026-11-10"),
+      end: d("2026-11-10"),
+    });
+  });
+
+  it("makes one-day bars in the future and swaps reversed dates", () => {
+    const result = timelineLayout(
+      columns,
+      [
+        row("1", { who: "Анна", from: "2026-11-23" }),
         row("2", { who: "Борис", from: "2026-11-10", to: "2026-11-08" }),
         row("3", { who: "Вера", to: "2026-11-08" }),
       ],
       view,
-      november
+      november,
+      at
     );
     const spans = result.lanes.map((l) =>
       l.items.map((i) => [dayKeyOf(i.start), dayKeyOf(i.end)])
     );
     expect(spans).toEqual([
-      [["2026-11-03", "2026-11-03"]],
+      [["2026-11-23", "2026-11-23"]],
       [["2026-11-08", "2026-11-10"]],
       [],
     ]);
@@ -347,7 +428,8 @@ describe("timelineLayout", () => {
       columns,
       rows,
       { ...view, laneColumn: "type" },
-      november
+      november,
+      at
     );
     // Options in their order; lanes without bars stay.
     expect(byType.lanes.map((l) => l.label)).toEqual([
@@ -360,8 +442,13 @@ describe("timelineLayout", () => {
 
   it("needs a start date column", () => {
     expect(
-      timelineLayout(columns, rows, { ...view, dateColumn: "who" }, november)
-        .lanes
+      timelineLayout(
+        columns,
+        rows,
+        { ...view, dateColumn: "who" },
+        november,
+        at
+      ).lanes
     ).toEqual([]);
   });
 });
@@ -372,6 +459,7 @@ describe("timeline view fields", () => {
       {
         ...view,
         laneColumn: "who",
+        labelColumn: "type",
         timelineScale: "quarter",
       },
       {
@@ -381,6 +469,7 @@ describe("timeline view fields", () => {
         endColumn: 5,
         laneColumn: "",
         colorColumn: null,
+        labelColumn: 7,
         weekdayColumn: ["wday"],
         timelineScale: "decade",
       },
@@ -392,6 +481,7 @@ describe("timeline view fields", () => {
     expect(data.views[0]).toEqual({
       ...view,
       laneColumn: "who",
+      labelColumn: "type",
       timelineScale: "quarter",
     });
     const again = normalizeDatabase(JSON.parse(JSON.stringify(data)));

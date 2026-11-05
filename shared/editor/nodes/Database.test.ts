@@ -70,6 +70,7 @@ describe("Database markdown", () => {
       endColumn: "bd",
       laneColumn: "dept",
       colorColumn: "dept",
+      labelColumn: "name",
       weekdayColumn: "dept",
       timelineScale: "year",
     };

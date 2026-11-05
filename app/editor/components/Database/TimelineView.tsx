@@ -144,12 +144,16 @@ export function TimelineView({ rows }: { rows: ComputedRow[] }) {
   const weekdayColumn = column(view.weekdayColumn, ColumnType.Select);
   const titleColumn = computed.columns[0];
   const laneColumn = column(view.laneColumn) ?? titleColumn;
+  const labelColumn = column(view.labelColumn);
 
   if (!startColumn || !titleColumn) {
     return <Notice>{t("Choose a start date column in “Fields”.")}</Notice>;
   }
 
-  const layout = timelineLayout(computed.columns, rows, view, range, userName);
+  const layout = timelineLayout(computed.columns, rows, view, range, {
+    userName,
+    calendars: productionCalendars,
+  });
 
   const format = (day: number, options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(
@@ -188,14 +192,17 @@ export function TimelineView({ rows }: { rows: ComputedRow[] }) {
     return optionPalette[color][theme.isDark ? "dark" : "light"];
   };
   const barLabel = (row: ComputedRow) =>
-    [
-      laneColumn.id !== titleColumn.id ? text(titleColumn, row) : "",
-      colorColumn ? text(colorColumn, row) : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    labelColumn
+      ? text(labelColumn, row)
+      : [
+          laneColumn.id !== titleColumn.id ? text(titleColumn, row) : "",
+          colorColumn ? text(colorColumn, row) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
-  // Tooltip: who, dates, then the select columns (type, status).
+  // Tooltip: who, dates, then the select columns (type, status) and the
+  // label column.
   const describe = (item: TimelineItem<ComputedRow>) => {
     const row = item.row;
     const start = formatDate(row.cells[startColumn.id]);
@@ -207,15 +214,21 @@ export function TimelineView({ rows }: { rows: ComputedRow[] }) {
         lines.push(`${start || "…"} — ${end || t("no end date")}`);
       }
     } else {
-      lines.push(end && end !== start ? `${start} — ${end}` : start);
+      lines.push(
+        item.ongoing
+          ? `${start} — ${t("no end date")}`
+          : end && end !== start
+            ? `${start} — ${end}`
+            : start
+      );
     }
     for (const col of computed.columns) {
-      if (
-        col.type === ColumnType.Select &&
-        col.id !== weekdayColumn?.id &&
-        col.id !== titleColumn.id &&
-        !view.hidden.includes(col.id)
-      ) {
+      const shown =
+        col.id === labelColumn?.id ||
+        (col.type === ColumnType.Select &&
+          col.id !== weekdayColumn?.id &&
+          !view.hidden.includes(col.id));
+      if (shown && col.id !== titleColumn.id) {
         const value = text(col, row);
         if (value) {
           lines.push(`${col.name}: ${value}`);

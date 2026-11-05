@@ -262,6 +262,11 @@ export type View = {
   /** Timeline view: the select column whose option colors paint the bars. */
   colorColumn?: string;
   /**
+   * Timeline view: the column whose value is the text on a bar; the value
+   * of the color column when missing.
+   */
+  labelColumn?: string;
+  /**
    * Timeline view: a select column with days of the week. A row with a
    * value is marked on that day every week, from its start to its end (or
    * without limits when they are empty).
@@ -1570,6 +1575,7 @@ export function normalizeDatabase(input: unknown): DatabaseData {
             "endColumn",
             "laneColumn",
             "colorColumn",
+            "labelColumn",
             "weekdayColumn",
           ]),
           ...(timelineScales.includes(v.timelineScale as TimelineScale)

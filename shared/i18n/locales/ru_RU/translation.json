@@ -2324,5 +2324,7 @@
   "Overlap": "Пересечение",
   "Shortened working day": "Сокращённый рабочий день",
   "Non-working day": "Нерабочий день",
-  "Overlaps": "Пересечения"
+  "Overlaps": "Пересечения",
+  "Label": "Подпись",
+  "Same as color": "Как у цвета"
 }
