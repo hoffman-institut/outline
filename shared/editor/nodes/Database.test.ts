@@ -58,6 +58,31 @@ describe("Database markdown", () => {
     expect(parsed.child(2).textContent).toBe("После базы");
   });
 
+  it("keeps the fields of a timeline view", () => {
+    const timeline = {
+      id: "v2",
+      name: "График",
+      type: ViewType.Timeline,
+      sort: [],
+      filters: [],
+      hidden: [],
+      dateColumn: "bd",
+      endColumn: "bd",
+      laneColumn: "dept",
+      colorColumn: "dept",
+      weekdayColumn: "dept",
+      timelineScale: "year",
+    };
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.database.create(
+        { id: "db2", title: "Отсутствия", columns, views: [timeline] },
+        [schema.nodes.database_row.create({ id: "r1", cells: {} })]
+      ),
+    ]);
+    const parsed = parser.parse(serializer.serialize(doc));
+    expect(parsed.child(0).attrs.views).toEqual([timeline]);
+  });
+
   it("keeps invalid JSON as a code block", () => {
     const parsed = parser.parse("```hoffman-database\nnot json\n```");
     expect(parsed.child(0).type.name).not.toBe("database");

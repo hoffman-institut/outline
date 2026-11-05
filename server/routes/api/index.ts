@@ -19,6 +19,7 @@ import attachments from "./attachments";
 import auth from "./auth";
 import authenticationProviders from "./authenticationProviders";
 import batch from "./batch";
+import calendar from "./calendar/calendar";
 import collections from "./collections";
 import comments from "./comments/comments";
 import databases from "./databases/databases";
@@ -93,6 +94,7 @@ PluginManager.getHooks(Hook.API).forEach((hook) =>
 router.use("/", auth.routes());
 router.use("/", authenticationProviders.routes());
 router.use("/", batch.routes());
+router.use("/", calendar.routes());
 router.use("/", events.routes());
 router.use("/", users.routes());
 router.use("/", collections.routes());

@@ -91,7 +91,14 @@ export enum ViewType {
   Form = "form",
   /** Cards with a picture from a files column. */
   Gallery = "gallery",
+  /** Bars from a start to an end date on lanes, e.g. vacations of people. */
+  Timeline = "timeline",
 }
+
+/** Period shown by a timeline view. */
+export type TimelineScale = "month" | "quarter" | "year";
+
+export const timelineScales: TimelineScale[] = ["month", "quarter", "year"];
 
 export type OptionColor =
   | "gray"
@@ -240,8 +247,28 @@ export type View = {
   calendarMode?: "month" | "week" | "day";
   /** Gallery view: the files column whose first picture is the cover. */
   coverColumn?: string;
-  /** Calendar view: the date column that places rows on days. */
+  /**
+   * Calendar view: the date column that places rows on days. Timeline view:
+   * the start of a bar.
+   */
   dateColumn?: string;
+  /** Timeline view: the date column with the end of a bar (inclusive). */
+  endColumn?: string;
+  /**
+   * Timeline view: the column whose values become lanes (rows with the same
+   * value share a lane); the first column when missing.
+   */
+  laneColumn?: string;
+  /** Timeline view: the select column whose option colors paint the bars. */
+  colorColumn?: string;
+  /**
+   * Timeline view: a select column with days of the week. A row with a
+   * value is marked on that day every week, from its start to its end (or
+   * without limits when they are empty).
+   */
+  weekdayColumn?: string;
+  /** Timeline view: the period shown, a month when missing. */
+  timelineScale?: TimelineScale;
   /** Calendar view: repeat dates every year (birthdays, anniversaries). */
   recurring?: boolean;
   /** Table view: the total shown under each column, by column id. */
@@ -870,7 +897,8 @@ const relativeDateOperators: FilterOperator[] = [
   "within_days",
 ];
 
-const dayNumber = (value: string) =>
+/** Days since 1970-01-01 of a "YYYY-MM-DD" day. */
+export const dayNumber = (value: string) =>
   Math.round(
     Date.UTC(+value.slice(0, 4), +value.slice(5, 7) - 1, +value.slice(8, 10)) /
       86400000
@@ -1430,6 +1458,18 @@ export function databaseToPlainText(
   return lines.filter(Boolean).join("\n");
 }
 
+/** The given keys of a view whose values are column ids (non-empty strings). */
+function pickIds<K extends keyof View>(
+  view: Partial<View>,
+  keys: K[]
+): Partial<Pick<View, K>> {
+  return Object.fromEntries(
+    keys
+      .filter((key) => typeof view[key] === "string" && view[key] !== "")
+      .map((key) => [key, view[key]])
+  ) as Partial<Pick<View, K>>;
+}
+
 /**
  * Normalizes data parsed from markdown or HTML so that missing fields get
  * defaults and unknown shapes cannot break the editor.
@@ -1525,6 +1565,15 @@ export function normalizeDatabase(input: unknown): DatabaseData {
             : {}),
           ...(typeof v.coverColumn === "string"
             ? { coverColumn: v.coverColumn }
+            : {}),
+          ...pickIds(v, [
+            "endColumn",
+            "laneColumn",
+            "colorColumn",
+            "weekdayColumn",
+          ]),
+          ...(timelineScales.includes(v.timelineScale as TimelineScale)
+            ? { timelineScale: v.timelineScale }
             : {}),
         }))
     : [];

@@ -2307,5 +2307,22 @@
   "Parent item": "Родительская задача",
   "Enable sub-items": "Включить подзадачи",
   "Linked database: choose the source": "Связанная база: выберите источник",
-  "Remove linked database": "Убрать связанную базу"
+  "Remove linked database": "Убрать связанную базу",
+  "Timeline": "Таймлайн",
+  "Start date": "Начало",
+  "Add a date column to use the timeline": "Добавьте столбец с датой, чтобы пользоваться таймлайном",
+  "End date": "Конец",
+  "Lanes": "Дорожки",
+  "Color": "Цвет",
+  "Day of the week": "День недели",
+  "Scale": "Масштаб",
+  "Quarter": "Квартал",
+  "Year": "Год",
+  "Choose a start date column in “Fields”.": "Выберите в «Полях» столбец с датой начала.",
+  "every week": "каждую неделю",
+  "no end date": "бессрочно",
+  "Overlap": "Пересечение",
+  "Shortened working day": "Сокращённый рабочий день",
+  "Non-working day": "Нерабочий день",
+  "Overlaps": "Пересечения"
 }

@@ -1,5 +1,6 @@
 import { observer } from "mobx-react";
 import {
+  AlignLeftIcon,
   CalendarIcon,
   CloseIcon,
   EyeIcon,
@@ -25,6 +26,7 @@ import type {
   FilterRule,
   RowTemplate,
   SortRule,
+  TimelineScale,
   View,
 } from "@shared/editor/lib/database";
 import {
@@ -39,6 +41,7 @@ import {
   computeDatabase,
   linkedRows,
 } from "@shared/editor/lib/databaseCompute";
+import { isWeekdayColumn } from "@shared/editor/lib/timeline";
 import { s } from "@shared/styles";
 import {
   Popover,
@@ -69,6 +72,8 @@ export function ViewIcon({ type }: { type: ViewType }) {
       return <EditIcon size={18} />;
     case ViewType.Gallery:
       return <ImageIcon size={18} />;
+    case ViewType.Timeline:
+      return <AlignLeftIcon size={18} />;
     default:
       return <TableIcon size={18} />;
   }
@@ -102,6 +107,7 @@ export function ViewToolbar({
     { type: ViewType.Table, label: t("Table") },
     { type: ViewType.Board, label: t("Board") },
     { type: ViewType.Calendar, label: t("Calendar") },
+    { type: ViewType.Timeline, label: t("Timeline") },
     { type: ViewType.Gallery, label: t("Gallery") },
     { type: ViewType.Form, label: t("Form") },
   ];
@@ -118,6 +124,29 @@ export function ViewToolbar({
       const dateColumn = data.columns.find((c) => c.type === ColumnType.Date);
       if (dateColumn) {
         added.dateColumn = dateColumn.id;
+      }
+    }
+    if (type === ViewType.Timeline) {
+      // The first two dates are the start and the end, the first select is
+      // the color, a select of weekdays marks days off every week.
+      const [start, end] = data.columns.filter(
+        (c) => c.type === ColumnType.Date
+      );
+      const weekday = data.columns.find(isWeekdayColumn);
+      const color = data.columns.find(
+        (c) => c.type === ColumnType.Select && c !== weekday
+      );
+      if (start) {
+        added.dateColumn = start.id;
+      }
+      if (end) {
+        added.endColumn = end.id;
+      }
+      if (color) {
+        added.colorColumn = color.id;
+      }
+      if (weekday) {
+        added.weekdayColumn = weekday.id;
       }
     }
     mutator.setAttrs({ views: [...data.views, added] });
@@ -751,6 +780,24 @@ function FieldsButton() {
     (c) => c.type === ColumnType.Select
   );
   const dateColumns = data.columns.filter((c) => c.type === ColumnType.Date);
+  const timelineDates = computed.columns.filter(
+    (c) => c.type === ColumnType.Date
+  );
+  const timelineSelects = computed.columns.filter(
+    (c) => c.type === ColumnType.Select
+  );
+  // An empty choice removes the key: attributes are synced as JSON.
+  const setOptional = (
+    key: "endColumn" | "laneColumn" | "colorColumn" | "weekdayColumn",
+    value: string
+  ) =>
+    value
+      ? updateView({ [key]: value } as Partial<View>)
+      : saveView(
+          Object.fromEntries(
+            Object.entries(view).filter(([name]) => name !== key)
+          ) as View
+        );
 
   return (
     <Popover>
@@ -880,6 +927,103 @@ function FieldsButton() {
                 />
                 {t("Repeat every year (birthdays)")}
               </CheckRow>
+              <MenuDivider />
+            </>
+          )}
+          {view.type === ViewType.Timeline && (
+            <>
+              <MenuLabel>{t("Start date")}</MenuLabel>
+              {timelineDates.length ? (
+                <Select
+                  value={view.dateColumn ?? ""}
+                  onChange={(event) =>
+                    updateView({ dateColumn: event.target.value })
+                  }
+                >
+                  <option value="" disabled>
+                    {t("Choose…")}
+                  </option>
+                  {timelineDates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Hint>{t("Add a date column to use the timeline")}</Hint>
+              )}
+              <MenuLabel>{t("End date")}</MenuLabel>
+              <Select
+                value={view.endColumn ?? ""}
+                onChange={(event) =>
+                  setOptional("endColumn", event.target.value)
+                }
+              >
+                <option value="">{t("None")}</option>
+                {timelineDates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              <MenuLabel>{t("Lanes")}</MenuLabel>
+              <Select
+                value={
+                  view.laneColumn !== computed.columns[0]?.id
+                    ? (view.laneColumn ?? "")
+                    : ""
+                }
+                onChange={(event) =>
+                  setOptional("laneColumn", event.target.value)
+                }
+              >
+                {computed.columns.map((c, index) => (
+                  <option key={c.id} value={index === 0 ? "" : c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              <MenuLabel>{t("Color")}</MenuLabel>
+              <Select
+                value={view.colorColumn ?? ""}
+                onChange={(event) =>
+                  setOptional("colorColumn", event.target.value)
+                }
+              >
+                <option value="">{t("None")}</option>
+                {timelineSelects.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              <MenuLabel>{t("Day of the week")}</MenuLabel>
+              <Select
+                value={view.weekdayColumn ?? ""}
+                onChange={(event) =>
+                  setOptional("weekdayColumn", event.target.value)
+                }
+              >
+                <option value="">{t("None")}</option>
+                {timelineSelects.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              <MenuLabel>{t("Scale")}</MenuLabel>
+              <Select
+                value={view.timelineScale ?? "month"}
+                onChange={(event) =>
+                  updateView({
+                    timelineScale: event.target.value as TimelineScale,
+                  })
+                }
+              >
+                <option value="month">{t("Month")}</option>
+                <option value="quarter">{t("Quarter")}</option>
+                <option value="year">{t("Year")}</option>
+              </Select>
               <MenuDivider />
             </>
           )}

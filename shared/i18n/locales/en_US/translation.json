@@ -2115,5 +2115,22 @@
   "Parent item": "Parent item",
   "Enable sub-items": "Enable sub-items",
   "Linked database: choose the source": "Linked database: choose the source",
-  "Remove linked database": "Remove linked database"
+  "Remove linked database": "Remove linked database",
+  "Timeline": "Timeline",
+  "Start date": "Start date",
+  "Add a date column to use the timeline": "Add a date column to use the timeline",
+  "End date": "End date",
+  "Lanes": "Lanes",
+  "Color": "Color",
+  "Day of the week": "Day of the week",
+  "Scale": "Scale",
+  "Quarter": "Quarter",
+  "Year": "Year",
+  "Choose a start date column in “Fields”.": "Choose a start date column in “Fields”.",
+  "every week": "every week",
+  "no end date": "no end date",
+  "Overlap": "Overlap",
+  "Shortened working day": "Shortened working day",
+  "Non-working day": "Non-working day",
+  "Overlaps": "Overlaps"
 }

@@ -38,6 +38,7 @@ import { FormView } from "./FormView";
 import { GalleryView } from "./GalleryView";
 import { RowPanel } from "./RowPanel";
 import { TableView } from "./TableView";
+import { TimelineView } from "./TimelineView";
 import { DatabaseTitle, ViewToolbar } from "./ViewToolbar";
 import type { DatabaseContextValue } from "./context";
 import { DatabaseContext } from "./context";
@@ -77,7 +78,8 @@ type BodyProps = {
 
 /**
  * Title, view tabs with sort / filter / fields, and the active view (table,
- * board, calendar, gallery, form) of a database or a linked database.
+ * board, calendar, timeline, gallery, form) of a database or a linked
+ * database.
  */
 const DatabaseBody = observer(function DatabaseBody({
   blockId,
@@ -264,6 +266,8 @@ const DatabaseBody = observer(function DatabaseBody({
           <GalleryView rows={rows} />
         ) : activeView.type === ViewType.Calendar ? (
           <CalendarView rows={rows} />
+        ) : activeView.type === ViewType.Timeline ? (
+          <TimelineView rows={rows} />
         ) : (
           <TableView rows={rows} focusRowId={focusRowId} />
         )}
