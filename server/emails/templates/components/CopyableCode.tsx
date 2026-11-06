@@ -1,15 +1,19 @@
 import * as React from "react";
+import { Colors } from "./brand";
 
 const style: React.CSSProperties = {
-  fontFamily: "monospace",
-  fontSize: "20px",
+  fontFamily: "'Courier New', Courier, monospace",
+  fontSize: "30px",
+  lineHeight: "36px",
   display: "inline-block",
-  padding: "10px 20px",
-  color: "#111319",
-  background: "#F9FBFC",
-  fontWeight: "500",
-  borderRadius: "2px",
-  letterSpacing: "0.1em",
+  margin: "4px 0 20px",
+  padding: "14px 24px",
+  color: Colors.head,
+  background: Colors.soft,
+  border: `1px solid ${Colors.line}`,
+  fontWeight: "bold",
+  borderRadius: "6px",
+  letterSpacing: "6px",
 };
 
 const CopyableCode: React.FC<React.PropsWithChildren> = (props) => (

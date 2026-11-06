@@ -1,5 +1,5 @@
 import * as React from "react";
-import theme from "@shared/styles/theme";
+import { Colors } from "./brand";
 
 type Props = {
   children: React.ReactNode;
@@ -8,12 +8,14 @@ type Props = {
 
 export default ({ children, ...rest }: Props) => {
   const style = {
-    border: `1.5px solid ${theme.backgroundSecondary}`,
-    borderRadius: "4px",
+    border: `1px solid ${Colors.line}`,
+    borderRadius: "6px",
     padding: ".75em 1em",
-    color: theme.text,
+    color: Colors.text,
+    backgroundColor: Colors.soft,
     display: "block",
     textDecoration: "none",
+    boxSizing: "border-box" as const,
     width: "100%",
   };
 

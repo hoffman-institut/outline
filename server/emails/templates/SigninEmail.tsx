@@ -5,11 +5,14 @@ import type { EmailProps } from "./BaseEmail";
 import BaseEmail, { EmailMessageCategory } from "./BaseEmail";
 import Body from "./components/Body";
 import Button from "./components/Button";
+import Callout from "./components/Callout";
+import CopyableCode from "./components/CopyableCode";
 import EmailTemplate from "./components/EmailLayout";
 import EmptySpace from "./components/EmptySpace";
 import Footer from "./components/Footer";
 import Header from "./components/Header";
 import Heading from "./components/Heading";
+import Note from "./components/Note";
 
 type Props = EmailProps & {
   token?: string;
@@ -50,12 +53,16 @@ ${this.t("Use the link below to sign in")}:
 
 ${this.signinLink(teamUrl, token, client)}
 
-${this.t("If the link expired you can request a new one from your team’s sign-in page at")}: ${teamUrl}
+${this.t("The link is valid for 10 minutes.")} ${this.t("Open it on the same device and network you requested it from. It does not work from a different IP address.")}
+
+${this.t("If the link has expired, request a new one on the sign-in page")}: ${teamUrl}
 `;
     }
 
     return `
 ${this.t("Enter this verification code")}: ${verificationCode}
+
+${this.t("The code is valid for 10 minutes.")}
 
 ${this.t("If the code expired you can request a new one from your team’s sign-in page at")}: ${teamUrl}
 `;
@@ -74,6 +81,15 @@ ${this.t("If the code expired you can request a new one from your team’s sign-
       }
     }
 
+    const host = teamUrl.replace(/^https?:\/\//, "");
+    const ignoreNote = (
+      <Note>
+        {this.t(
+          "If you did not request to sign in, just ignore this email. No one can sign in with your email address without this link or code."
+        )}
+      </Note>
+    );
+
     return (
       <EmailTemplate
         previewText={this.preview()}
@@ -90,25 +106,34 @@ ${this.t("If the code expired you can request a new one from your team’s sign-
 
         {token ? (
           <Body>
-            <Heading>{this.t("Magic Sign-in Link")}</Heading>
-            <p>
-              {this.t("Click the button below to sign in to {{ appName }}.", {
-                appName: env.APP_NAME,
-              })}
-            </p>
-            <EmptySpace height={10} />
-            <p>
-              <Button href={this.signinLink(teamUrl, token, client)}>
-                {this.t("Sign In")}
-              </Button>
-            </p>
-            <EmptySpace height={20} />
+            <Heading>{this.t("Wiki sign-in")}</Heading>
             <p>
               {this.t(
-                "If the link expired you can request a new one from your team’s sign-in page at"
+                "Hi! Here is your link to sign in to the Hoffman Institute corporate wiki. Click the button and you are in."
               )}
-              : <a href={teamUrl}>{teamUrl}</a>
             </p>
+            <p>
+              <Button href={this.signinLink(teamUrl, token, client)}>
+                {this.t("Sign in to the wiki")}
+              </Button>
+            </p>
+            <EmptySpace height={8} />
+            <Callout
+              title={this.t("About this link")}
+              items={[
+                this.t("The link is valid for 10 minutes."),
+                this.t(
+                  "Open it on the same device and network you requested it from. It does not work from a different IP address."
+                ),
+                <>
+                  {this.t(
+                    "If the link has expired, request a new one on the sign-in page"
+                  )}
+                  : <a href={teamUrl}>{host}</a>.
+                </>,
+              ]}
+            />
+            {ignoreNote}
           </Body>
         ) : (
           <Body>
@@ -118,26 +143,20 @@ ${this.t("If the code expired you can request a new one from your team’s sign-
                 "Enter this code on your team’s sign-in page to continue."
               )}
             </p>
-            <EmptySpace height={10} />
-            <p
-              style={{
-                fontSize: "24px",
-                letterSpacing: "0.25em",
-                fontWeight: "bold",
-                backgroundColor: "#F9FAFB",
-                padding: "12px",
-                borderRadius: "4px",
-              }}
-            >
-              {verificationCode}
-            </p>
-            <EmptySpace height={20} />
-            <p>
-              {this.t(
-                "If the code expired you can request a new one from your team’s sign-in page at"
-              )}
-              : <a href={teamUrl}>{teamUrl}</a>
-            </p>
+            <CopyableCode>{verificationCode}</CopyableCode>
+            <Callout
+              title={this.t("About this code")}
+              items={[
+                this.t("The code is valid for 10 minutes."),
+                <>
+                  {this.t(
+                    "If the code expired you can request a new one from your team’s sign-in page at"
+                  )}
+                  : <a href={teamUrl}>{host}</a>.
+                </>,
+              ]}
+            />
+            {ignoreNote}
           </Body>
         )}
         <Footer />

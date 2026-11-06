@@ -104,8 +104,8 @@ ${this.t("View Collection")}: ${teamUrl}${collection.path}
               "{{ actorName }} invited you to {{ permission }} documents in the",
               { actorName, permission }
             )}{" "}
-            <a href={collectionUrl}>{collection.name}</a> {this.t("collection")}
-            .
+            <a href={collectionUrl}>{collection.name}</a>{" "}
+            {this.t("collection", { context: "email", permission })}.
           </p>
           <p>
             <Button href={collectionUrl}>{this.t("View Collection")}</Button>

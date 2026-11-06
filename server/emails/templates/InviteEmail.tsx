@@ -5,11 +5,13 @@ import type { EmailProps } from "./BaseEmail";
 import BaseEmail, { EmailMessageCategory } from "./BaseEmail";
 import Body from "./components/Body";
 import Button from "./components/Button";
+import Callout from "./components/Callout";
 import EmailTemplate from "./components/EmailLayout";
 import EmptySpace from "./components/EmptySpace";
 import Footer from "./components/Footer";
 import Header from "./components/Header";
 import Heading from "./components/Heading";
+import Note from "./components/Note";
 
 type Props = EmailProps & {
   name: string;
@@ -55,22 +57,19 @@ export default class InviteEmail extends BaseEmail<Props, void> {
     return;
   }
 
-  protected renderAsText({
-    teamName,
-    actorName,
-    actorEmail,
-    teamUrl,
-  }: Props): string {
+  protected renderAsText({ actorName, actorEmail, teamUrl }: Props): string {
     return `
-${this.t("Join {{ teamName }} on {{ appName }}", { teamName, appName: env.APP_NAME })}
+${this.t("You're invited to the wiki")}
 
-${actorName} ${actorEmail ? `(${actorEmail})` : ""} ${this.t("has invited you to join {{ appName }}, a place for your team to build and share knowledge.", { appName: env.APP_NAME })}
+${this.t("Hi!")} ${actorName} ${actorEmail ? `(${actorEmail})` : ""} ${this.t("invites you to the Hoffman Institute corporate wiki. It is home to our instructions, policies and everything you need to know about working in the team.")}
 
-${this.t("Join now")}: ${teamUrl}
+${this.t("Open the wiki")}: ${teamUrl}
+
+${this.t("Click the button and enter your work email to get a sign-in link. No password needed.")}
 `;
   }
 
-  protected render({ teamName, actorName, actorEmail, teamUrl }: Props) {
+  protected render({ actorName, teamUrl }: Props) {
     const inviteLink = `${teamUrl}?ref=invite-email`;
 
     return (
@@ -78,23 +77,33 @@ ${this.t("Join now")}: ${teamUrl}
         <Header />
 
         <Body>
-          <Heading>
-            {this.t("Join {{ teamName }} on {{ appName }}", {
-              teamName,
-              appName: env.APP_NAME,
-            })}
-          </Heading>
+          <Heading>{this.t("You're invited to the wiki")}</Heading>
           <p>
-            {actorName} {actorEmail ? `(${actorEmail})` : ""}{" "}
+            {this.t("Hi!")} <strong>{actorName}</strong>{" "}
             {this.t(
-              "has invited you to join {{ appName }}, a place for your team to build and share knowledge.",
-              { appName: env.APP_NAME }
+              "invites you to the Hoffman Institute corporate wiki. It is home to our instructions, policies and everything you need to know about working in the team."
             )}
           </p>
-          <EmptySpace height={10} />
           <p>
-            <Button href={inviteLink}>{this.t("Join now")}</Button>
+            <Button href={inviteLink}>{this.t("Open the wiki")}</Button>
           </p>
+          <EmptySpace height={8} />
+          <Callout
+            title={this.t("How to sign in")}
+            items={[
+              this.t(
+                "Click the button and enter your work email to get a sign-in link. No password needed."
+              ),
+              this.t(
+                "Open the email with the link on the same device, then signing in works the first time."
+              ),
+            ]}
+          />
+          <Note>
+            {this.t(
+              "If this invitation reached you by mistake, just ignore this email."
+            )}
+          </Note>
         </Body>
 
         <Footer />

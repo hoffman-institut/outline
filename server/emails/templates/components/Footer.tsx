@@ -1,13 +1,20 @@
-import { Table, TBody, TR, TD } from "oy-vey";
 import * as React from "react";
-import theme from "@shared/styles/theme";
-import { UrlHelper } from "@shared/utils/UrlHelper";
 import env from "@server/env";
+import { Colors, fontFamily } from "./brand";
+import { useEmailTranslation } from "./EmailContext";
 
 type Props = {
   unsubscribeUrl?: string;
   unsubscribeText?: string;
   children?: React.ReactNode;
+};
+
+const textStyle: React.CSSProperties = {
+  margin: 0,
+  fontFamily,
+  fontSize: "12px",
+  lineHeight: "18px",
+  color: Colors.muted,
 };
 
 export const Link = ({
@@ -18,10 +25,9 @@ export const Link = ({
   children: React.ReactNode;
 }) => {
   const linkStyle = {
-    color: theme.slate,
-    fontWeight: 500,
-    textDecoration: "none",
-    marginRight: "10px",
+    color: Colors.muted,
+    textDecoration: "underline",
+    margin: "0 6px",
   };
 
   return (
@@ -31,50 +37,37 @@ export const Link = ({
   );
 };
 
+/**
+ * Footer under the card: who sent the email and where to ask questions,
+ * followed by the unsubscribe links of notification emails. EmailLayout moves
+ * it out of the card.
+ */
 export default ({ unsubscribeUrl, unsubscribeText, children }: Props) => {
-  const footerStyle = {
-    padding: "20px 0",
-    borderTop: `1px solid ${theme.smokeDark}`,
-    color: theme.slate,
-    fontSize: "14px",
-  };
-  const footerLinkStyle = {
-    padding: "0",
-    color: theme.slate,
-    fontSize: "14px",
-  };
-  const externalLinkStyle = {
-    color: theme.slate,
-    textDecoration: "none",
-    margin: "0 10px",
-  };
+  const t = useEmailTranslation();
+  const host = env.URL.replace(/^https?:\/\//, "");
 
   return (
-    <Table width="100%">
-      <TBody>
-        <TR>
-          <TD style={footerStyle}>
-            <Link href={env.URL}>{env.APP_NAME}</Link>
-            <a href={UrlHelper.twitter} style={externalLinkStyle}>
-              Twitter
-            </a>
-          </TD>
-        </TR>
-        {unsubscribeUrl && (
-          <TR>
-            <TD style={footerLinkStyle}>
-              <Link href={unsubscribeUrl}>
-                {unsubscribeText ?? "Unsubscribe from these emails"}
-              </Link>
-            </TD>
-          </TR>
-        )}
-        {children && (
-          <TR>
-            <TD style={footerLinkStyle}>{children}</TD>
-          </TR>
-        )}
-      </TBody>
-    </Table>
+    <>
+      <p style={textStyle}>
+        {t("This email was sent by the Hoffman Institute corporate wiki")} —{" "}
+        <a
+          href={env.URL}
+          style={{ color: Colors.muted, textDecoration: "underline" }}
+        >
+          {host}
+        </a>
+        . {t("Questions? Ask in the “техподдержка” channel in Mattermost.")}
+      </p>
+      {(unsubscribeUrl || children) && (
+        <p style={{ ...textStyle, marginTop: "8px" }}>
+          {unsubscribeUrl && (
+            <Link href={unsubscribeUrl}>
+              {unsubscribeText ?? t("Unsubscribe from these emails")}
+            </Link>
+          )}
+          {children}
+        </p>
+      )}
+    </>
   );
 };

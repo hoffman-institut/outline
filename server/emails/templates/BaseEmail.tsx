@@ -22,6 +22,7 @@ import { TextHelper } from "@server/models/helpers/TextHelper";
 import { taskQueue } from "@server/queues";
 import { TaskPriority } from "@server/queues/tasks/base/BaseTask";
 import type { NotificationMetadata } from "@server/types";
+import { EmailContext } from "./components/EmailContext";
 
 export enum EmailMessageCategory {
   Authentication = "authentication",
@@ -170,10 +171,10 @@ export default abstract class BaseEmail<
         references,
         previewText: this.preview(data),
         component: (
-          <>
+          <EmailContext.Provider value={(key, options) => this.t(key, options)}>
             {this.render(data)}
             {notification ? this.pixel(notification) : null}
-          </>
+          </EmailContext.Provider>
         ),
         text: this.renderAsText(data),
         headCSS: this.headCSS?.(data),

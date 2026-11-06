@@ -108,9 +108,9 @@ export default class DocumentPublishedOrUpdatedEmail extends BaseEmail<
   eventName(eventType: NotificationEventType) {
     switch (eventType) {
       case NotificationEventType.PublishDocument:
-        return this.t("published");
+        return this.t("published", { context: "email" });
       case NotificationEventType.UpdateDocument:
-        return this.t("updated");
+        return this.t("updated", { context: "email" });
       default:
         return "";
     }

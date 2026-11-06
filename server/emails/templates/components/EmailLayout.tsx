@@ -1,6 +1,7 @@
 import { Table, TBody, TR, TD } from "oy-vey";
 import * as React from "react";
-import theme from "@shared/styles/theme";
+import { Colors, fontFamily } from "./brand";
+import Footer from "./Footer";
 
 const EmailLayout: React.FC<
   React.PropsWithChildren<{
@@ -8,7 +9,7 @@ const EmailLayout: React.FC<
     previewText: string;
     goToAction?: { url: string; name: string };
   }>
-> = ({ previewText, bgcolor = "#FFFFFF", goToAction, children }) => {
+> = ({ previewText, bgcolor = Colors.soft, goToAction, children }) => {
   let markup;
   if (goToAction) {
     markup = JSON.stringify({
@@ -21,6 +22,14 @@ const EmailLayout: React.FC<
       },
     });
   }
+
+  // The footer goes under the card; emails without one get the default footer.
+  const items = React.Children.toArray(children);
+  const footers = items.filter(
+    (item) => React.isValidElement(item) && item.type === Footer
+  );
+  const content = items.filter((item) => !footers.includes(item));
+
   return (
     <>
       {markup ? (
@@ -33,6 +42,10 @@ const EmailLayout: React.FC<
         bgcolor={bgcolor}
         id="__bodyTable__"
         width="100%"
+        role="presentation"
+        cellPadding="0"
+        cellSpacing="0"
+        border="0"
         style={{
           WebkitFontSmoothing: "antialiased",
           width: "100% !important",
@@ -44,7 +57,7 @@ const EmailLayout: React.FC<
         }}
       >
         <TR>
-          <TD align="center">
+          <TD align="center" style={{ padding: "24px 12px" }}>
             <span
               style={{
                 display: "none !important",
@@ -57,10 +70,47 @@ const EmailLayout: React.FC<
             >
               {previewText}
             </span>
-            <Table width="550">
+            <Table
+              className="hi-container"
+              width="600"
+              role="presentation"
+              cellPadding="0"
+              cellSpacing="0"
+              border="0"
+              bgcolor="#ffffff"
+              style={{
+                width: "600px",
+                maxWidth: "600px",
+                backgroundColor: "#ffffff",
+                border: `1px solid ${Colors.line}`,
+                borderTop: `4px solid ${Colors.accent}`,
+                borderRadius: "8px",
+              }}
+            >
               <TBody>
                 <TR>
-                  <TD align="left">{children}</TD>
+                  <TD align="left">{content}</TD>
+                </TR>
+              </TBody>
+            </Table>
+            <Table
+              className="hi-container"
+              width="600"
+              role="presentation"
+              cellPadding="0"
+              cellSpacing="0"
+              border="0"
+              style={{ width: "600px", maxWidth: "600px" }}
+            >
+              <TBody>
+                <TR>
+                  <TD
+                    className="hi-pad"
+                    align="center"
+                    style={{ padding: "16px 32px 8px" }}
+                  >
+                    {footers.length ? footers : <Footer />}
+                  </TD>
                 </TR>
               </TBody>
             </Table>
@@ -75,15 +125,27 @@ export default EmailLayout;
 
 export const baseStyles = `
   #__bodyTable__ {
-    font-family: ${theme.fontFamily};
+    font-family: ${fontFamily};
     font-size: 16px;
     line-height: 1.5;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .email-button {
-      background: #FFFFFF !important;
-      color: #000000 !important;
+  .hi-body p {
+    margin: 0 0 16px;
+  }
+
+  .hi-body a {
+    color: ${Colors.accent};
+  }
+
+  @media only screen and (max-width: 620px) {
+    .hi-container {
+      width: 100% !important;
+    }
+
+    .hi-pad {
+      padding-left: 20px !important;
+      padding-right: 20px !important;
     }
   }
 `;

@@ -103,7 +103,7 @@ ${this.t("View Document")}: ${teamUrl}${document.path}
               permission,
             })}{" "}
             <a href={documentUrl}>{document.titleWithDefault}</a>{" "}
-            {this.t("document")}.
+            {this.t("document", { context: "email", permission })}.
           </p>
           <p>
             <Button href={documentUrl}>{this.t("View Document")}</Button>

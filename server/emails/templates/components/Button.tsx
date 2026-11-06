@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Colors, fontFamily } from "./brand";
 
 type Props = {
   href: string;
@@ -6,12 +7,15 @@ type Props = {
 
 const style: React.CSSProperties = {
   display: "inline-block",
-  padding: "10px 20px",
-  color: "#FFFFFF",
-  background: "#000000",
-  border: "1px solid #000",
-  borderRadius: "4px",
-  fontWeight: 500,
+  padding: "13px 28px",
+  fontFamily,
+  fontSize: "16px",
+  lineHeight: "20px",
+  fontWeight: "bold",
+  color: "#ffffff",
+  background: Colors.accent,
+  border: `1px solid ${Colors.accent}`,
+  borderRadius: "6px",
   textDecoration: "none",
   cursor: "pointer",
 };

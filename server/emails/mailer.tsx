@@ -8,6 +8,7 @@ import env from "@server/env";
 import { InternalError } from "@server/errors";
 import Logger from "@server/logging/Logger";
 import { trace } from "@server/logging/tracing";
+import { Colors } from "./templates/components/brand";
 import { baseStyles } from "./templates/components/EmailLayout";
 
 const useTestEmailService = env.isDevelopment && !env.SMTP_USERNAME;
@@ -173,6 +174,7 @@ export class Mailer {
       {
         title: data.subject,
         headCSS: [baseStyles, data.headCSS].join(" "),
+        bgColor: Colors.soft,
       } as Oy.RenderOptions,
       this.template
     );
@@ -203,9 +205,9 @@ export class Mailer {
           ? undefined
           : [
               {
-                filename: "header-logo.png",
-                path: process.cwd() + "/public/email/header-logo.png",
-                cid: "header-image",
+                filename: "outline-logo.png",
+                path: process.cwd() + "/public/email/outline-logo.png",
+                cid: "outline-logo",
               },
             ],
       });

@@ -1,15 +1,28 @@
 import { Table, TBody, TR, TD } from "oy-vey";
 import * as React from "react";
-import EmptySpace from "./EmptySpace";
+import { Colors, fontFamily } from "./brand";
 
 const Body: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <Table width="100%">
+  <Table
+    width="100%"
+    role="presentation"
+    cellPadding="0"
+    cellSpacing="0"
+    border="0"
+  >
     <TBody>
       <TR>
-        <TD>
-          <EmptySpace height={10} />
+        <TD
+          className="hi-pad hi-body"
+          style={{
+            padding: "28px 32px 12px",
+            fontFamily,
+            fontSize: "16px",
+            lineHeight: "24px",
+            color: Colors.text,
+          }}
+        >
           {children}
-          <EmptySpace height={40} />
         </TD>
       </TR>
     </TBody>
