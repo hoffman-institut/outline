@@ -349,6 +349,46 @@ describe("timelineLayout", () => {
     expect(saturday.overlaps.size).toBe(0);
   });
 
+  it("needs two rows for an overlap, not one row on two lanes", () => {
+    const team: Column = {
+      id: "team",
+      name: "Команда",
+      type: ColumnType.MultiSelect,
+      options: [
+        { id: "a", name: "Анна", color: "gray" },
+        { id: "b", name: "Борис", color: "gray" },
+      ],
+    };
+    const byTeam = { ...view, laneColumn: "team" };
+    const both = row("1", {
+      team: ["a", "b"],
+      from: "2026-11-09",
+      to: "2026-11-13",
+    });
+    const alone = timelineLayout(
+      [...columns, team],
+      [both],
+      byTeam,
+      november,
+      at
+    );
+    expect(alone.lanes.map((l) => l.items.length)).toEqual([1, 1]);
+    expect(alone.overlaps.size).toBe(0);
+
+    const withOther = timelineLayout(
+      [...columns, team],
+      [both, row("2", { team: ["b"], from: "2026-11-12", to: "2026-11-20" })],
+      byTeam,
+      november,
+      at
+    );
+    expect([...withOther.overlaps.keys()].map(dayKeyOf)).toEqual([
+      "2026-11-12",
+      "2026-11-13",
+    ]);
+    expect(withOther.overlaps.get(d("2026-11-12"))).toEqual(["Анна", "Борис"]);
+  });
+
   it("does not count weekly marks or two bars of one lane", () => {
     const own = timelineLayout(
       columns,

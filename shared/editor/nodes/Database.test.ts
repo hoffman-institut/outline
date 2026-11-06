@@ -124,6 +124,33 @@ describe("Linked database markdown", () => {
     expect(parsed.child(1).textContent).toBe("После");
   });
 
+  it("keeps the fields of a timeline view", () => {
+    const timeline = {
+      id: "v2",
+      name: "График",
+      type: ViewType.Timeline,
+      sort: [],
+      filters: [],
+      hidden: [],
+      dateColumn: "bd",
+      endColumn: "bd",
+      laneColumn: "dept",
+      colorColumn: "dept",
+      labelColumn: "name",
+      weekdayColumn: "dept",
+      timelineScale: "quarter",
+    };
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.database_view.create({
+        id: "lv3",
+        source: { documentId: "doc-1", databaseId: "db1" },
+        views: [timeline],
+      }),
+    ]);
+    const parsed = parser.parse(serializer.serialize(doc));
+    expect(parsed.child(0).attrs.views).toEqual([timeline]);
+  });
+
   it("keeps a block without a source", () => {
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.database_view.create({ id: "lv2", source: null, views: [] }),

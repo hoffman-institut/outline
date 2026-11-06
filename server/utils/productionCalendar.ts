@@ -24,10 +24,21 @@ async function fetchCalendar(year: number): Promise<string | null> {
       // A signal, not `timeout`: it also limits reading the body.
       { signal: AbortSignal.timeout(5000), redirect: "error", size: 64 * 1024 }
     );
-    // Unknown years answer 404 with the code "101".
-    return res.ok
-      ? (parseProductionCalendar(await res.text(), year) ?? null)
-      : null;
+    // Unknown years answer 404 with the code "101": nothing to report.
+    if (!res.ok) {
+      if (res.status !== 404) {
+        Logger.warn("Unexpected answer of isdayoff.ru", {
+          year,
+          status: res.status,
+        });
+      }
+      return null;
+    }
+    const days = parseProductionCalendar(await res.text(), year);
+    if (!days) {
+      Logger.warn("isdayoff.ru answered without a calendar", { year });
+    }
+    return days ?? null;
   } catch (err) {
     Logger.warn("Could not load the production calendar", {
       year,

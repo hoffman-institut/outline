@@ -6,6 +6,7 @@ import styled, { css, useTheme } from "styled-components";
 import type { Column, TimelineScale } from "@shared/editor/lib/database";
 import {
   ColumnType,
+  dateKey,
   dayNumber,
   displayValue,
   formatDate,
@@ -29,6 +30,7 @@ import {
 import { s } from "@shared/styles";
 import useUserLocale from "~/hooks/useUserLocale";
 import { client } from "~/utils/ApiClient";
+import { AuthorizationError } from "~/utils/errors";
 import { SmallButton } from "./components";
 import { useDatabase, useUpdateView } from "./context";
 
@@ -43,9 +45,9 @@ const calendars = new Map<number, Promise<string | undefined>>();
 
 /**
  * Loads the production calendar of a year from the server. Without it days
- * off are Saturdays and Sundays: when the service is down the server says
- * so and the next period asks again; a failed request (a public share
- * without signing in) is not repeated until the page is reloaded.
+ * off are Saturdays and Sundays. When the service or the request fails the
+ * next period shown asks again; without access (a public share without
+ * signing in) the request is not repeated until the page is reloaded.
  */
 function loadCalendar(year: number): Promise<string | undefined> {
   let promise = calendars.get(year);
@@ -59,7 +61,12 @@ function loadCalendar(year: number): Promise<string | undefined> {
         }
         return parseProductionCalendar(String(res.data.days ?? ""), year);
       })
-      .catch(() => undefined);
+      .catch((err: unknown) => {
+        if (!(err instanceof AuthorizationError)) {
+          calendars.delete(year);
+        }
+        return undefined;
+      });
     calendars.set(year, promise);
   }
   return promise;
@@ -205,8 +212,15 @@ export function TimelineView({ rows }: { rows: ComputedRow[] }) {
   // label column.
   const describe = (item: TimelineItem<ComputedRow>) => {
     const row = item.row;
-    const start = formatDate(row.cells[startColumn.id]);
-    const end = endColumn ? formatDate(row.cells[endColumn.id]) : "";
+    // Reversed dates are shown in order, as the bar is drawn.
+    const values = [
+      row.cells[startColumn.id],
+      endColumn ? row.cells[endColumn.id] : undefined,
+    ];
+    const [low, high] = values.map(dateKey);
+    const [start, end] = (
+      low && high && high < low ? [values[1], values[0]] : values
+    ).map(formatDate);
     const lines = [text(titleColumn, row) || t("Untitled")];
     if (item.weekly && weekdayColumn) {
       lines.push(`${text(weekdayColumn, row)}, ${t("every week")}`);
@@ -509,6 +523,13 @@ const Scroll = styled.div`
 const Canvas = styled.div`
   position: relative;
   min-width: 100%;
+
+  /* The editor makes everything content-box (Styles.ts), which would add
+     paddings and borders to the widths computed here. */
+  &&,
+  && * {
+    box-sizing: border-box;
+  }
 `;
 
 const Layer = styled.div`

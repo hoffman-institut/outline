@@ -348,7 +348,16 @@ export function timelineLayout<R extends Row>(
     };
   };
 
-  const lanesOfDay = new Map<number, string[]>();
+  // Working days of the range, worked out once.
+  const working = Array.from(
+    { length: range.end - range.start + 1 },
+    (_, i) => dayKind(range.start + i, calendars) !== "off"
+  );
+  // Lanes and rows with a bar on each working day.
+  const busyDays = new Map<
+    number,
+    { lanes: Set<string>; labels: string[]; rows: Set<string> }
+  >();
   const lanes = groupRows(laneColumn, rows, { userName }).map((group) => {
     const items = group.rows
       .map(itemOf)
@@ -364,19 +373,27 @@ export function timelineLayout<R extends Row>(
       ends[level] = item.end;
       return { ...item, level };
     });
-    const busy = new Set<number>();
     for (const item of placed) {
-      if (!item.weekly) {
-        for (let day = item.start; day <= item.end; day++) {
-          if (dayKind(day, calendars) !== "off") {
-            busy.add(day);
-          }
+      if (item.weekly) {
+        continue;
+      }
+      for (let day = item.start; day <= item.end; day++) {
+        if (!working[day - range.start]) {
+          continue;
         }
+        const busy = busyDays.get(day) ?? {
+          lanes: new Set(),
+          labels: [],
+          rows: new Set(),
+        };
+        if (!busy.lanes.has(group.key)) {
+          busy.lanes.add(group.key);
+          busy.labels.push(group.label);
+        }
+        busy.rows.add(item.row.id);
+        busyDays.set(day, busy);
       }
     }
-    busy.forEach((day) =>
-      lanesOfDay.set(day, [...(lanesOfDay.get(day) ?? []), group.label])
-    );
     return {
       key: group.key,
       label: group.label,
@@ -385,10 +402,13 @@ export function timelineLayout<R extends Row>(
     };
   });
 
+  // An overlap needs two lanes and two rows: one row on two lanes (two
+  // people in a multi-value column) is not an overlap.
   const overlaps = new Map(
-    [...lanesOfDay]
-      .filter(([, labels]) => labels.length > 1)
+    [...busyDays]
+      .filter(([, busy]) => busy.lanes.size > 1 && busy.rows.size > 1)
       .sort(([a], [b]) => a - b)
+      .map(([day, busy]) => [day, busy.labels] as const)
   );
   return { lanes, overlaps };
 }
