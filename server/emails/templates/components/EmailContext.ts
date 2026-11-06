@@ -8,7 +8,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
  * as the header and footer use the language of the recipient.
  */
 export const EmailContext = React.createContext<Translate>(
-  (key, options) => i18nT(key, options) as string
+  (key, options) => i18nT(key, { ...options }) as string
 );
 
 export const useEmailTranslation = () => React.useContext(EmailContext);
