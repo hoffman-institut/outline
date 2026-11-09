@@ -57,19 +57,36 @@ export default class InviteEmail extends BaseEmail<Props, void> {
     return;
   }
 
-  protected renderAsText({ actorName, actorEmail, teamUrl }: Props): string {
+  // Tell the invitee exactly which address to enter on the login page.
+  private signInHint(to: string | null) {
+    return to
+      ? this.t(
+          "Click the button and enter this email: {{ email }}. A sign-in link will come to it, no password needed.",
+          { email: to }
+        )
+      : this.t(
+          "Click the button and enter your work email to get a sign-in link. No password needed."
+        );
+  }
+
+  protected renderAsText({
+    actorName,
+    actorEmail,
+    teamUrl,
+    to,
+  }: Props): string {
     return `
 ${this.t("You're invited to the wiki")}
 
 ${this.t("Hi!")} ${actorName} ${actorEmail ? `(${actorEmail})` : ""} ${this.t("invites you to the Hoffman Institute corporate wiki. It is home to our instructions, policies and everything you need to know about working in the team.")}
 
-${this.t("Open the wiki")}: ${teamUrl}
+${this.t("Accept invitation")}: ${teamUrl}
 
-${this.t("Click the button and enter your work email to get a sign-in link. No password needed.")}
+${this.signInHint(to)}
 `;
   }
 
-  protected render({ actorName, teamUrl }: Props) {
+  protected render({ actorName, teamUrl, to }: Props) {
     const inviteLink = `${teamUrl}?ref=invite-email`;
 
     return (
@@ -85,15 +102,13 @@ ${this.t("Click the button and enter your work email to get a sign-in link. No p
             )}
           </p>
           <p>
-            <Button href={inviteLink}>{this.t("Open the wiki")}</Button>
+            <Button href={inviteLink}>{this.t("Accept invitation")}</Button>
           </p>
           <EmptySpace height={8} />
           <Callout
             title={this.t("How to sign in")}
             items={[
-              this.t(
-                "Click the button and enter your work email to get a sign-in link. No password needed."
-              ),
+              this.signInHint(to),
               this.t(
                 "Open the email with the link on the same device, then signing in works the first time."
               ),

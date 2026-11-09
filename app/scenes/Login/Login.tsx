@@ -33,13 +33,11 @@ import useQuery from "~/hooks/useQuery";
 import useStores from "~/hooks/useStores";
 import Desktop from "~/utils/Desktop";
 import isCloudHosted from "~/utils/isCloudHosted";
-import { detectLanguage } from "~/utils/language";
 import { homePath } from "~/utils/routeHelpers";
 import AuthenticationProvider from "./components/AuthenticationProvider";
 import { BackButton } from "./components/BackButton";
 import { Background } from "./components/Background";
 import { Centered } from "./components/Centered";
-import { EmailInboxButtons } from "./components/EmailInboxButtons";
 import { Notices } from "./components/Notices";
 import { PasskeyAuthenticationProvider } from "./components/PasskeyAuthenticationProvider";
 import { SigningIn } from "./components/SigningIn";
@@ -157,7 +155,7 @@ function Login({ children, onBack }: Props) {
     return (
       <Background>
         <BackButton onBack={onBack} />
-        <ChangeLanguage locale={detectLanguage()} />
+        <ChangeLanguage locale={env.DEFAULT_LANGUAGE} />
         <SwitchHostButton />
         <Centered>
           <PageTitle title={t("Login")} />
@@ -190,7 +188,7 @@ function Login({ children, onBack }: Props) {
   if (isDesktopPasskeyRedirect) {
     return (
       <Background>
-        <ChangeLanguage locale={detectLanguage()} />
+        <ChangeLanguage locale={env.DEFAULT_LANGUAGE} />
         <Centered gap={12}>
           <SigningIn />
           <PasskeyAuthenticationProvider />
@@ -206,7 +204,7 @@ function Login({ children, onBack }: Props) {
     return (
       <Background>
         <BackButton onBack={onBack} config={config} />
-        <ChangeLanguage locale={detectLanguage()} />
+        <ChangeLanguage locale={env.DEFAULT_LANGUAGE} />
         <Centered>
           <PageTitle title={t("Custom domain setup")} />
           <Heading centered>{t("Almost there")}…</Heading>
@@ -224,7 +222,7 @@ function Login({ children, onBack }: Props) {
     return (
       <Background>
         <BackButton onBack={onBack} config={config} />
-        <ChangeLanguage locale={detectLanguage()} />
+        <ChangeLanguage locale={env.DEFAULT_LANGUAGE} />
 
         <Centered as="form" onSubmit={handleGoSubdomain}>
           <Heading centered>{t("Choose workspace")}</Heading>
@@ -306,15 +304,27 @@ function Login({ children, onBack }: Props) {
             </>
           ) : (
             <>
+              <InfoBox>
+                <strong>
+                  <Trans
+                    defaults="A sign-in link has been sent to <em>{{ emailLinkSentTo }}</em>"
+                    values={{ emailLinkSentTo }}
+                    components={{ em: <em /> }}
+                  />
+                </strong>
+                <span>
+                  {t(
+                    "Open this mailbox on this device and click the link in the new email “{{ subject }}”. That is how you sign in.",
+                    { subject: t("Magic Sign-in Link") }
+                  )}
+                </span>
+              </InfoBox>
               <Note>
-                <Trans
-                  defaults="A magic sign-in link has been sent to the email <em>{{ emailLinkSentTo }}</em> if an account exists."
-                  values={{ emailLinkSentTo }}
-                  components={{ em: <em /> }}
-                />
+                {t(
+                  "No email after 2–3 minutes? Check your Spam folder. If it is not there either, you may have entered a different address: go back and enter the one the invitation was sent to."
+                )}
               </Note>
               <br />
-              <EmailInboxButtons email={emailLinkSentTo} />
             </>
           )}
           <ButtonLarge onClick={handleReset} fullwidth neutral>
@@ -334,7 +344,7 @@ function Login({ children, onBack }: Props) {
   return (
     <Background>
       <BackButton onBack={onBack} config={config} />
-      <ChangeLanguage locale={detectLanguage()} />
+      <ChangeLanguage locale={env.DEFAULT_LANGUAGE} />
       <SwitchHostButton />
 
       <Centered gap={12}>
@@ -370,6 +380,16 @@ function Login({ children, onBack }: Props) {
               {t("Corporate knowledge base of Hoffman Institute Russia")}
             </Content>
             {children?.(config)}
+            {config.providers.some((provider) => provider.id === "email") && (
+              <InfoBox>
+                <strong>{t("Sign-in is by a link from an email")}</strong>
+                <span>
+                  {t(
+                    "Enter the email address the wiki invitation was sent to. A sign-in link will be sent to it, no password needed."
+                  )}
+                </span>
+              </InfoBox>
+            )}
           </>
         )}
         <Notices />
@@ -465,6 +485,26 @@ const Note = styled(Text)`
   em {
     font-style: normal;
     font-weight: 500;
+  }
+`;
+
+const InfoBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border-left: 3px solid ${s("accent")};
+  background: ${s("sidebarBackground")};
+  color: ${s("text")};
+  font-size: 15px;
+  line-height: 1.45;
+  text-align: left;
+
+  em {
+    font-style: normal;
+    font-weight: 600;
   }
 `;
 
