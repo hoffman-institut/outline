@@ -407,7 +407,11 @@ function TextCell({ column, value, editable, onChange, autoFocus }: CellProps) {
         rows={1}
         value={draft}
         title={t("Shift+Enter — new line")}
-        ref={(el) => el && fitHeight(el)}
+        ref={(el) => {
+          if (el) {
+            fitHeight(el);
+          }
+        }}
         onChange={(event) => {
           setDraft(event.target.value);
           fitHeight(event.target);
