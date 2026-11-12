@@ -2168,5 +2168,6 @@
   "published_email": "published",
   "updated_email": "updated",
   "document_email": "document",
-  "collection_email": "collection"
+  "collection_email": "collection",
+  "Shift+Enter — new line": "Shift+Enter — new line"
 }

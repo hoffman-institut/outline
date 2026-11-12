@@ -2360,5 +2360,6 @@
   "collection_email": "(право: {{ permission }})",
   "document_email": "(право: {{ permission }})",
   "published_email": "публикует",
-  "updated_email": "обновляет"
+  "updated_email": "обновляет",
+  "Shift+Enter — new line": "Shift+Enter — новая строка"
 }

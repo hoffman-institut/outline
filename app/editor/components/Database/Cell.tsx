@@ -365,6 +365,7 @@ function linkFor(type: ColumnType, text: string): string | undefined {
 }
 
 function TextCell({ column, value, editable, onChange, autoFocus }: CellProps) {
+  const { t } = useTranslation();
   const isNumber = column.type === ColumnType.Number;
   const text = value === null || value === undefined ? "" : String(value);
   // Numbers are shown formatted (1 500 ₽) and edited as typed (1500).
@@ -398,6 +399,32 @@ function TextCell({ column, value, editable, onChange, autoFocus }: CellProps) {
       onChange(next);
     }
   };
+
+  if (editing && column.type === ColumnType.Text) {
+    return (
+      <CellTextArea
+        autoFocus
+        rows={1}
+        value={draft}
+        title={t("Shift+Enter — new line")}
+        ref={(el) => el && fitHeight(el)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          fitHeight(event.target);
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            commit();
+          }
+          if (event.key === "Escape") {
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
 
   if (editing) {
     return (
@@ -791,6 +818,30 @@ const CellButton = styled.button`
   line-height: 22px;
   text-align: left;
   cursor: pointer;
+`;
+
+/** Grows a textarea to its content, so long text is edited without scrolling. */
+function fitHeight(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+const CellTextArea = styled.textarea`
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  outline: 2px solid ${s("accent")};
+  outline-offset: -2px;
+  background: ${s("background")};
+  color: ${s("text")};
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  resize: none;
+  overflow: hidden;
+  word-break: break-word;
 `;
 
 const CellInput = styled.input`
