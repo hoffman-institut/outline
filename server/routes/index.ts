@@ -245,10 +245,8 @@ router.get("{/*path}", async (ctx, next) => {
     description:
       publicBranding && team?.description ? team.description : undefined,
     analytics,
-    shortcutIcon:
-      publicBranding && team?.avatarUrl
-        ? ((await team.publicAvatarUrl()) ?? undefined)
-        : undefined,
+    // Hoffman: the tab keeps the Outline icon even with public branding, so the wiki is
+    // recognisable among the other services' tabs; the team logo stays on the login page.
   });
 });
 

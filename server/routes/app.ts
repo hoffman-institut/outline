@@ -362,10 +362,7 @@ export const renderShare = async (ctx: Context, next: Next) => {
       document?.getSummary() ||
       (publicBranding && team?.description ? team.description : undefined),
     content,
-    shortcutIcon:
-      publicBranding && team?.avatarUrl
-        ? ((await team.publicAvatarUrl()) ?? undefined)
-        : undefined,
+    // Hoffman: the Outline icon in the tab, see server/routes/index.ts.
     analytics,
     isShare: true,
     rootShareId,
